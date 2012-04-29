@@ -1,6 +1,6 @@
 PROJECT="scratchpad-gist"
 PWD=`pwd`
-VERSION=`git describe --tags | tail -c +2`
+VERSION=`git describe --tags`
 XPI="${PWD}/build/${PROJECT}-${VERSION}.xpi"
 
 .PHONY: xpi
