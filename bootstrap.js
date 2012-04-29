@@ -11,17 +11,17 @@ if (Cc) {
 }
 
 var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"]
-.getService(Ci.nsIWindowMediator);
+  .getService(Ci.nsIWindowMediator);
 
 var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"]
-.getService(Ci.nsIPromptService);
+  .getService(Ci.nsIPromptService);
 
 var kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
 var kAuthIDPref = "devtools.scratchpad.gist.authid";
 var kUserPref = "devtools.scratchpad.gist.userid";
 
 var kAuthNote = "Scratchpad";
-var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);margin-top: 4px";
+var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);margin-top: 4px;";
 
 function strPref(key) Services.prefs.prefHasUserValue(key) ? Services.prefs.getCharPref(key) : null;
 
@@ -51,6 +51,8 @@ ScratchpadGist.prototype = {
   get nbox() this.doc.getElementById("scratchpad-notificationbox"),
   get commandset() this.doc.getElementById("sp-gist-commands"),
   get historyPopup() this.doc.getElementById("sp-gist-history"),
+  get fileButton() this.doc.getElementById("sp-gist-file"),
+  get filesPopup() this.doc.getElementById("sp-gist-files"),
 
   destroy: function() {
     Services.obs.removeObserver(this.updateUI, "sp-gist-auth", false);
@@ -296,9 +298,19 @@ ScratchpadGist.prototype = {
 
     this.addChild(toolbar, "toolbarspring", {});
 
+    let fileSelector = this.addChild(toolbar, "toolbarbutton", {
+      id: "sp-gist-file",
+      class: "devtools-toolbarbutton sp-gist-multifile",
+      type: "menu"
+    });
+
+    this.addChild(fileSelector, "menupopup", {
+      id: "sp-gist-files"
+    });
+
     this.addChild(toolbar, "toolbarbutton", {
       command: "sp-gist-cmd-refresh",
-      class: "devtools-toolbarbutton",
+      class: "devtools-toolbarbutton"
     });
 
     let history = this.addChild(toolbar, "toolbarbutton", {
@@ -335,6 +347,7 @@ ScratchpadGist.prototype = {
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
     let own = attached && (this.attachedGist.user.id == this.authUser);
+    let multifile = this.attachedGist && Object.getOwnPropertyNames(this.attachedGist.files).length > 1;
 
     for (var i = 0; i < items.length; i++) {
       let item = items[i];
@@ -342,7 +355,8 @@ ScratchpadGist.prototype = {
         (item.classList.contains("sp-gist-attached") && !attached) ||
         (item.classList.contains("sp-gist-detached") && attached) ||
         (item.classList.contains("sp-gist-owned") && !own) ||
-        (item.classList.contains("sp-gist-other") && own))
+        (item.classList.contains("sp-gist-other") && own) ||
+        (item.classList.contains("sp-gist-multifile") && !multifile))
 
         item.setAttribute("hidden", true);
       else
@@ -354,6 +368,8 @@ ScratchpadGist.prototype = {
       this.toolbarLink.setAttribute("href", this.attachedGist.html_url);
       this.toolbarLink.setAttribute("value", this.attachedGist.html_url);
 
+      this.clear(this.historyPopup);
+
       this.attachedGist.history.forEach(function(item) {
         let menuitem = this.addChild(this.historyPopup, "menuitem", {
           label: item.version.substr(0, 6) + " " + item.user.login,
@@ -362,8 +378,28 @@ ScratchpadGist.prototype = {
           this.refresh(item.version);
         }.bind(this), true);
       }.bind(this));
+
+      this.fileButton.setAttribute("label", this.attachedFilename);
+      this.clear(this.filesPopup);
+      Object.getOwnPropertyNames(this.attachedGist.files).forEach(function(name) {
+        let item = this.attachedGist.files[name];
+        let menuitem = this.addChild(this.filesPopup, "menuitem", {
+          label: item.filename,
+        });
+        menuitem.addEventListener("command", function() {
+          this.fileButton.setAttribute("label", name);
+          this.attachedFilename = name;
+          this.loadFile(this.attachedGist, item);
+        }.bind(this));
+      }.bind(this));
     } else {
       this.toolbar.hidden = true;
+    }
+  },
+
+  clear: function(elt) {
+    while (elt.hasChildNodes()) {
+      elt.removeChild(elt.firstChild);
     }
   },
 
@@ -424,7 +460,7 @@ ScratchpadGist.prototype = {
         Services.prefs.setCharPref(kAuthTokenPref, authorization.token);
         Services.prefs.setCharPref(kUserPref, response.id);
         Services.obs.notifyObservers(null, "sp-gist-auth", "");
-        this.notify(this.nbox.PRIORITY_INFO_MEDIUM, "Logged in as " + response.name + ".");
+        this.notify(this.nbox.PRIORITY_INFO_HIGH, "Logged in as " + response.name + ".");
       }.bind(this)
     });
   },
@@ -438,7 +474,9 @@ ScratchpadGist.prototype = {
   attach: function() {
     let val = {value: null};
     let check = {value:false};
-    promptService.prompt(this.win, "Attach to Gist", "Enter the Gist ID or URL",  val, "", check);
+    promptService.prompt(
+      this.win, "Attach to Gist", "Enter the Gist ID or URL",  val, "", check
+    );
 
     let id = val.value;
     let gistRE = new RegExp("gist.github.com/(.*)");
@@ -451,8 +489,8 @@ ScratchpadGist.prototype = {
       path: "/gists/" + id,
       err: "Could not attach to the Gist: ",
       success: function(response) {
-        this.attached(response);
         this.load(response);
+        this.attached(response);
       }.bind(this),
       error: function() {
         this.win.alert("Couldn't find gist.");
@@ -462,6 +500,9 @@ ScratchpadGist.prototype = {
 
   attached: function(gist) {
     this.attachedGist = gist;
+    if (!this.attachedFile) {
+      this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    }
     this.updateUI();
   },
 
@@ -496,13 +537,17 @@ ScratchpadGist.prototype = {
   _getFile: function() {
     let files = {};
 
-    let scratchpad = this.win.Scratchpad;
-    let filename = "scratchpad.js";
-    if (scratchpad.filename) {
-      filename = scratchpad.filename;
-      let lastSep = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
-      if (lastSep > -1) {
-        filename = filename.substring(lastSep + 1);
+    if (this.attachedFilename) {
+      var filename = this.attachedFilename;
+    } else {
+      let scratchpad = this.win.Scratchpad;
+      var filename = "scratchpad.js";
+      if (scratchpad.filename) {
+        filename = scratchpad.filename;
+        let lastSep = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+        if (lastSep > -1) {
+          filename = filename.substring(lastSep + 1);
+        }
       }
     }
     files[filename] = {
@@ -518,7 +563,7 @@ ScratchpadGist.prototype = {
       args: {
         description: null,
         public: pub,
-        files: this._getFile(),
+        files: this._getFile()
       },
       success: function(response) {
         this.attached(response);
@@ -538,10 +583,17 @@ ScratchpadGist.prototype = {
   },
 
   load: function(gist) {
+    let file = null;
     for (var i in gist.files) {
-      this.loadFile(gist, gist.files[i]);
-      return;
+      if (gist.files[i].filename == this.attachedFilename) {
+        this.loadFile(gist, gist.files[i]);
+        return;
+      }
     }
+    // The attached filename was either empty or is now missing.
+    // Attach to the first one.
+    this.attachedFilename = Object.getOwnPropertyNames(gist.files)[0];
+    this.loadFile(gist, gist.files[this.attachedFilename]);
   },
 
   loadFile: function(gist, file) {
@@ -559,7 +611,8 @@ function attachWindow(win) {
 var WindowListener = {
   onOpenWindow: function(win) {
     // Wait for the window to finish loading
-    let win = win.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowInternal || Ci.nsIDOMWindow);
+    let win = win.QueryInterface(Ci.nsIInterfaceRequestor)
+      .getInterface(Ci.nsIDOMWindowInternal || Ci.nsIDOMWindow);
     win.addEventListener("load", function onLoad() {
       win.removeEventListener("load", onLoad, false);
       attachWindow(win);
@@ -627,3 +680,4 @@ if (loadedInScratchpad) {
   shutdown();
   startup();
 }
+
