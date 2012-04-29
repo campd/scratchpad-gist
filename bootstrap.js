@@ -211,11 +211,11 @@ ScratchpadGist.prototype = {
     });
 
     this.createChild(popup, "menuitem", {
-      command, "sp-gist-cmd-create-public",
+      command: "sp-gist-cmd-create-public",
       class: "sp-gist-authed sp-gist-detached"
     });
     this.createChild(popup, "menuitem", {
-      command, "sp-gist-cmd-create-private",
+      command: "sp-gist-cmd-create-private",
       class: "sp-gist-authed sp-gist-detached"
     });
 
