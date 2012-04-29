@@ -25,11 +25,7 @@ var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,
 
 
 function strPref(key) {
-    try {
-        return Services.prefs.getCharPref(key);
-    } catch(ex) {
-        return null;
-    }
+	return Services.prefs.hasUserPref(key) ? Services.prefs.getCharPref(key) : null;
 }
 
 function ScratchpadGist(win)
@@ -40,10 +36,11 @@ function ScratchpadGist(win)
     this.updateUI = this.updateUI.bind(this);
     Services.obs.addObserver(this.updateUI, "sp-gist-auth", false);
 
-    this.addCommands();
     this.addStyles();
-    this.addToolbar();
+    this.addCommands();
     this.addMenu();
+    this.addToolbar();
+    this.updateUI();
 }
 
 ScratchpadGist.prototype = {
@@ -123,6 +120,25 @@ ScratchpadGist.prototype = {
         }
     },
 
+    addCommand: function(options) {
+        let command = this.doc.createElement("command");
+        command.setAttribute("id", options.id);
+        if (options.label) {
+            command.setAttribute("label", options.label);
+        }
+        command.addEventListener("command", options.handler, true);
+        this.commandset.appendChild(command);
+    },
+
+    addChild: function(parent, tag, attributes) {
+    	let element = this.doc.createElement(tag);
+    	for (var item in Object.prototype.getOwnPropertyNames(attributes)) {
+    		element.setAttribute(item, attributes[item]);
+    	}
+    	parent.appendChild(element);
+    	return element;
+    },
+
     addCommands: function() {
         let commands = this.doc.createElement("commandset");
         commands.setAttribute("id", "sp-gist-commands");
@@ -175,15 +191,6 @@ ScratchpadGist.prototype = {
         });
     },
 
-    addCommand: function(options) {
-        let command = this.doc.createElement("command");
-        command.setAttribute("id", options.id);
-        if (options.label) {
-            command.setAttribute("label", options.label);
-        }
-        command.addEventListener("command", options.handler, true);
-        this.commandset.appendChild(command);
-    },
 
     addMenu: function() {
         let doc = this.doc;
@@ -196,59 +203,45 @@ ScratchpadGist.prototype = {
         menu.setAttribute("id", "sp-gist-menu");
         menu.setAttribute("label", "Gist");
 
-        let popup = doc.createElement("menupopup");
-        popup.setAttribute("id", "sp-gist-popup");
-        menu.appendChild(popup);
+        let popup = this.createChild(menu, "menupopup", { id: "sp-gist-popup" });
 
-        let item = doc.createElement("menuitem");
-        item.setAttribute("id", "sp-gist-auth");
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", { id: "sp-gist-auth" });
 
-        item = doc.createElement("menuseparator");
-        item.setAttribute("class", "sp-gist-authed");
-        popup.appendChild(item);
+        this.createChild(popup, "menuseparator", { class: "sp-gist-authed" });
 
-        item = doc.createElement("menuitem");
-        item.setAttribute("id", "sp-gist-attach");
-        item.setAttribute("class", "sp-gist-authed");
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", {
+        	id: "sp-gist-attach",
+        	class: "sp-gist-authed"
+        });
 
-        item = doc.createElement("menuitem");
-        item.setAttribute("command", "sp-gist-cmd-create-private");
-        item.setAttribute("class", "sp-gist-authed sp-gist-detached");
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", {
+        	command, "sp-gist-cmd-create-public",
+        	class: "sp-gist-authed sp-gist-detached"
+        });
+        this.createChild(popup, "menuitem", {
+        	command, "sp-gist-cmd-create-private",
+        	class: "sp-gist-authed sp-gist-detached"
+        });
 
-        item = doc.createElement("menuitem");
-        item.setAttribute("command", "sp-gist-cmd-create-public");
-        item.setAttribute("class", "sp-gist-authed sp-gist-detached");
-        popup.appendChild(item);
+        this.createChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
 
-        item = doc.createElement("menuseparator");
-        item.setAttribute("class", "sp-gist-authed sp-gist-attached");
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", {
+        	command: "sp-gist-cmd-refresh",
+        	class: "sp-gist-authed sp-gist-attached"
+        });
 
-        item = doc.createElement("menuitem");
-        item.setAttribute("command", "sp-gist-cmd-fork");
-        item.setAttribute("class", "sp-gist-authed sp-gist-attached sp-gist-other");
-        item.addEventListener("command", this.refresh.bind(this));
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", {
+        	command: "sp-gist-cmd-fork",
+        	class: "sp-gist-authed sp-gist-attached sp-gist-other"
+        });
 
-        item = doc.createElement("menuitem");
-        item.setAttribute("command", "sp-gist-cmd-refresh");
-        item.setAttribute("class", "sp-gist-authed sp-gist-attached");
-        item.addEventListener("command", this.refresh.bind(this));
-        popup.appendChild(item);
-
-        item = doc.createElement("menuitem");
-        item.setAttribute("command", "sp-gist-cmd-update");
-        item.setAttribute("class", "sp-gist-authed sp-gist-attached sp-gist-owned");
-        item.addEventListener("command", this.update.bind(this));
-        popup.appendChild(item);
+        this.createChild(popup, "menuitem", {
+        	command: "sp-gist-cmd-update",
+        	class: "sp-gist-authed sp-gist-owned"
+        });
 
         let help = doc.getElementById("sp-help-menu");
         menubar.insertBefore(menu, help);
-
-        this.updateUI();
     },
 
     addToolbar: function() {
@@ -257,39 +250,38 @@ ScratchpadGist.prototype = {
         toolbar.setAttribute("class", "devtools-toolbar");
         toolbar.setAttribute("hidden", "true");
 
-        let close = this.doc.createElement("toolbarbutton");
-        close.setAttribute("id", "highlighter-closebutton");
-        close.setAttribute("command", "sp-gist-cmd-detach");
-        toolbar.appendChild(close);
+        this.createChild(toolbar, "toolbarbutton", {
+        	id: "highlighter-closebutton",
+        	command: "sp-gist-cmd-detach"
+        });
 
-        let label = this.doc.createElement("label");
-        label.setAttribute("style", kLabelStyle);
-        label.setAttribute("value", "Attached to gist:");
-        toolbar.appendChild(label);
+        this.createChild(toolbar, "label", {
+        	style: kLabelStyle,
+        	value: "Attached to Gist:"
+        });
 
-        let link = this.doc.createElement("label");
-        link.setAttribute("id", "sp-gist-link");
-        link.setAttribute("class", "text-link");
-        link.setAttribute("style", kLabelStyle);
-        toolbar.appendChild(link);
+        this.createChild(toolbar, "label", {
+        	id: "sp-gist-link",
+        	class: "text-link",
+        	style: kLabelStyle
+        })
 
-        let item = this.doc.createElement("toolbarspring");
-        toolbar.appendChild(item);
+        this.createChild(toolbar, "toolbarspring", {});
 
-        button = this.doc.createElement("toolbarbutton");
-        button.setAttribute("command", "sp-gist-cmd-refresh");
-        button.setAttribute("class", "devtools-toolbarbutton");
-        toolbar.appendChild(button);
+        this.createChild(toolbar, "toolbarbutton", {
+        	command: "sp-gist-cmd-refresh",
+        	class: "devtools-toolbarbutton",
+        });
 
-        let button = this.doc.createElement("toolbarbutton");
-        button.setAttribute("command", "sp-gist-cmd-fork");
-        button.setAttribute("class", "devtools-toolbarbutton sp-gist-other");
-        toolbar.appendChild(button);
+        this.createChild(toolbar, "toolbarbutton", {
+        	command: "sp-gist-cmd-fork",
+        	class: "devtools-toolbarbutton sp-gist-other"
+        });
 
-        button = this.doc.createElement("toolbarbutton");
-        button.setAttribute("command", "sp-gist-cmd-update");
-        button.setAttribute("class", "devtools-toolbarbutton sp-gist-owned");
-        toolbar.appendChild(button);
+        this.createChild(toolbar, "toolbarbutton", {
+        	command: "sp-gist-cmd-update",
+        	class: "devtools-toolbarbutton sp-gist-owned"
+        });
 
         this.nbox.parentNode.insertBefore(toolbar, this.nbox);
     },
