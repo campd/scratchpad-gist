@@ -65,6 +65,11 @@ ScratchpadGist.prototype = {
     this.toolbar.parentNode.removeChild(this.toolbar);
     this.commandset.parentNode.removeChild(this.commandset);
 
+    let notification = this.nbox.getNotificationWithValue("gist-notification");
+    if (notification) {
+      this.nbox.removeNotification(notification);
+    }
+
     this.removeStyles();
   },
 
@@ -77,15 +82,41 @@ ScratchpadGist.prototype = {
       if (xhr.status >= 200 && xhr.status < 400) {
         if (options.success) options.success(JSON.parse(xhr.responseText));
       } else {
-        if (options.err) options.err(xhr);
+        if (typeof(options.err) == "function") {
+          options.err(xhr);
+        } else {
+          try {
+            let response = JSON.parse(xhr.responseText)
+            let prefix = typeof(options.err) == "string" ? options.err : "The request returned an error: ";
+            var label = prefix + response.message + ".";
+          } catch(ex) {
+            var label = "Request could not be completed.";
+          }
+          this.notify(this.nbox.PRIORITY_CRITICAL_HIGH, label);
+        }
       }
-    }
+    }.bind(this);
+
     xhr.open(options.method || "GET",
      "https://api.github.com" + options.path,
      true, null, null);
 
     xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
     xhr.send(options.args ? JSON.stringify(options.args) : "");
+  },
+
+  defaultError: function(prefix, xhr) {
+  },
+
+  notify: function(priority, label, buttons) {
+    let notification = this.nbox.getNotificationWithValue("gist-notification");
+    if (notification) {
+      this.nbox.removeNotification(notification);
+    }
+
+    this.nbox.appendNotification(
+      label, "gist-notification", null, priority, buttons, null
+    );
   },
 
   addStyles: function() {
@@ -352,6 +383,7 @@ ScratchpadGist.prototype = {
     this.request({
       method: "GET",
       path: "/authorizations",
+      err: "Couldn't log in: ",
       auth: auth,
       success: function(response) {
         for each (let authorization in response) {
@@ -370,6 +402,7 @@ ScratchpadGist.prototype = {
       method: "POST",
       path: "/authorizations",
       auth: auth,
+      erro: "Couldn't log in: ",
       args: {
         scopes: ["gist"],
         note: kAuthNote,
@@ -391,7 +424,8 @@ ScratchpadGist.prototype = {
         Services.prefs.setCharPref(kAuthTokenPref, authorization.token);
         Services.prefs.setCharPref(kUserPref, response.id);
         Services.obs.notifyObservers(null, "sp-gist-auth", "");
-      }
+        this.notify(this.nbox.PRIORITY_INFO_MEDIUM, "Logged in as " + response.name + ".");
+      }.bind(this)
     });
   },
 
@@ -415,6 +449,7 @@ ScratchpadGist.prototype = {
 
     this.request({
       path: "/gists/" + id,
+      err: "Could not attach to the Gist: ",
       success: function(response) {
         this.attached(response);
         this.load(response);
