@@ -226,7 +226,7 @@ ScratchpadGist.prototype = {
       command: "sp-gist-cmd-refresh",
       class: "sp-gist-authed sp-gist-attached"
     });
-    
+
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-fork",
       class: "sp-gist-authed sp-gist-attached sp-gist-other"
@@ -542,6 +542,13 @@ function startup(data, reason)
     attachWindow(e.getNext());
   }
   windowMediator.addListener(WindowListener);
+
+  // When loading from scratchpad, stash the listener
+  // on the window object so we get the right one during
+  // shutdown.
+  if (loadedInScratchpad) {
+    window._scratchpadGistListener = WindowListener;
+  }
 }
 
 function shutdown(data, reason)
@@ -565,7 +572,17 @@ function shutdown(data, reason)
       toolbar.parentNode.removeChild(toolbar);
     }
   }
-  windowMediator.removeListener(WindowListener);
+
+  if (loadedInScratchpad) {
+    // If we were loaded from a scratchpad, we need to remove the
+    // listener added by the previous run.
+    if (window._scratchpadGistListener) {
+      windowMediator.removeListener(window._scratchpadGistListener);
+    }
+  } else {
+    // Otherwise we just use the same WindowListener we added.
+    windowMediator.removeListener(WindowListener);
+  }
 }
 
 function install(data, reason) {}
