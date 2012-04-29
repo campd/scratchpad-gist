@@ -17,7 +17,7 @@ var kAuthIDPref = "devtools.scratchpad.gist.authid";
 var kUserPref = "devtools.scratchpad.gist.userid";
 
 var kAuthNote = "Scratchpad";
-var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);";
+var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);margin-top: 4px";
 
 
 function strPref(key) {
@@ -268,18 +268,21 @@ ScratchpadGist.prototype = {
         link.setAttribute("class", "text-link");
         link.setAttribute("style", kLabelStyle);
         toolbar.appendChild(link);
-        
-        let button = this.doc.createElement("toolbarbutton");
-        button.setAttribute("command", "sp-gist-cmd-fork");
-        button.setAttribute("class", "devtools-toolbarbutton sp-gist-other");
-        toolbar.appendChild(button);
 
-        let button = this.doc.createElement("toolbarbutton");
+        let item = this.doc.createElement("toolbarspring");
+        toolbar.appendChild(item);
+        
+        button = this.doc.createElement("toolbarbutton");
         button.setAttribute("command", "sp-gist-cmd-refresh");
         button.setAttribute("class", "devtools-toolbarbutton");
         toolbar.appendChild(button);
 
         let button = this.doc.createElement("toolbarbutton");
+        button.setAttribute("command", "sp-gist-cmd-fork");
+        button.setAttribute("class", "devtools-toolbarbutton sp-gist-other");
+        toolbar.appendChild(button);
+
+        button = this.doc.createElement("toolbarbutton");
         button.setAttribute("command", "sp-gist-cmd-update");
         button.setAttribute("class", "devtools-toolbarbutton sp-gist-owned");
         toolbar.appendChild(button);
@@ -447,12 +450,13 @@ ScratchpadGist.prototype = {
         let scratchpad = this.win.Scratchpad;
         let filename = "scratchpad.js";
         if (scratchpad.filename) {
-            let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
-            file.initWithPath(scratchpad.filename);
-            filename = file.leafName;
+            filename = scratchpad.filename;
+            let lastSep = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+            if (lastSep > -1) {
+                filename = filename.substring(lastSep + 1);
+            }
         }
         files[filename] = {
-            language: "JavaScript",
             content: this.win.Scratchpad.getText()
         };
         return files;
