@@ -23,7 +23,7 @@ var kUserPref = "devtools.scratchpad.gist.userid";
 var kAuthNote = "Scratchpad";
 var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);margin-top: 4px";
 
-function strPref(key) Services.prefs.hasUserPref(key) ? Services.prefs.getCharPref(key) : null;
+function strPref(key) Services.prefs.prefHasUserValue(key) ? Services.prefs.getCharPref(key) : null;
 
 function ScratchpadGist(win)
 {
@@ -129,7 +129,7 @@ ScratchpadGist.prototype = {
 
   addChild: function(parent, tag, attributes) {
     let element = this.doc.createElement(tag);
-    for (var item in Object.prototype.getOwnPropertyNames(attributes)) {
+    for each (var item in Object.getOwnPropertyNames(attributes)) {
       element.setAttribute(item, attributes[item]);
     }
     parent.appendChild(element);
@@ -199,39 +199,39 @@ ScratchpadGist.prototype = {
     menu.setAttribute("id", "sp-gist-menu");
     menu.setAttribute("label", "Gist");
 
-    let popup = this.createChild(menu, "menupopup", { id: "sp-gist-popup" });
+    let popup = this.addChild(menu, "menupopup", { id: "sp-gist-popup" });
 
-    this.createChild(popup, "menuitem", { id: "sp-gist-auth" });
+    this.addChild(popup, "menuitem", { id: "sp-gist-auth" });
 
-    this.createChild(popup, "menuseparator", { class: "sp-gist-authed" });
+    this.addChild(popup, "menuseparator", { class: "sp-gist-authed" });
 
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       id: "sp-gist-attach",
       class: "sp-gist-authed"
     });
 
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-public",
       class: "sp-gist-authed sp-gist-detached"
     });
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-private",
       class: "sp-gist-authed sp-gist-detached"
     });
 
-    this.createChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
+    this.addChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
 
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-refresh",
       class: "sp-gist-authed sp-gist-attached"
     });
 
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-fork",
       class: "sp-gist-authed sp-gist-attached sp-gist-other"
     });
 
-    this.createChild(popup, "menuitem", {
+    this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-update",
       class: "sp-gist-authed sp-gist-owned"
     });
@@ -246,36 +246,35 @@ ScratchpadGist.prototype = {
     toolbar.setAttribute("class", "devtools-toolbar");
     toolbar.setAttribute("hidden", "true");
 
-    this.createChild(toolbar, "toolbarbutton", {
+    this.addChild(toolbar, "toolbarbutton", {
       id: "highlighter-closebutton",
       command: "sp-gist-cmd-detach"
     });
 
-    this.createChild(toolbar, "label", {
+    this.addChild(toolbar, "label", {
       style: kLabelStyle,
       value: "Attached to Gist:"
     });
 
-    this.createChild(toolbar, "label", {
+    this.addChild(toolbar, "label", {
       id: "sp-gist-link",
       class: "text-link",
       style: kLabelStyle
     })
 
-    this.createChild(toolbar, "toolbarspring", {});
+    this.addChild(toolbar, "toolbarspring", {});
 
-    this.createChild(toolbar, "toolbarbutton", {
+    let refreshButton = this.addChild(toolbar, "toolbarbutton", {
       command: "sp-gist-cmd-refresh",
       class: "devtools-toolbarbutton",
-      type: "menu-button"
     });
 
-    this.createChild(toolbar, "toolbarbutton", {
+    this.addChild(toolbar, "toolbarbutton", {
       command: "sp-gist-cmd-fork",
       class: "devtools-toolbarbutton sp-gist-other"
     });
 
-    this.createChild(toolbar, "toolbarbutton", {
+    this.addChild(toolbar, "toolbarbutton", {
       command: "sp-gist-cmd-update",
       class: "devtools-toolbarbutton sp-gist-owned"
     });
