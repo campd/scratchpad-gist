@@ -13,8 +13,10 @@ var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
+// Pref stores the auth token we were given by gist.
 var kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
-var kAuthIDPref = "devtools.scratchpad.gist.authid";
+
+// Pref stores the user we authenticated as.
 var kUserPref = "devtools.scratchpad.gist.userid";
 
 var kAuthNote = "Scratchpad";
@@ -39,7 +41,6 @@ function ScratchpadGist(win)
 
 ScratchpadGist.prototype = {
   get authtoken() strPref(kAuthTokenPref),
-  get authID() strPref(kAuthIDPref),
   get authUser() strPref(kUserPref),
 
   get menu() this.doc.getElementById("sp-gist-menu"),
@@ -453,7 +454,6 @@ ScratchpadGist.prototype = {
       path: "/user",
       auth: "token " + authorization.token,
       success: function(response) {
-        Services.prefs.setCharPref(kAuthIDPref, authorization.id);
         Services.prefs.setCharPref(kAuthTokenPref, authorization.token);
         Services.prefs.setCharPref(kUserPref, response.id);
         Services.obs.notifyObservers(null, "sp-gist-auth", "");
@@ -464,7 +464,6 @@ ScratchpadGist.prototype = {
 
   signOut: function() {
     Services.prefs.clearUserPref(kAuthTokenPref);
-    Services.prefs.clearUserPref(kAuthIDPref);
     Services.obs.notifyObservers(null, "sp-gist-auth", "");
   },
 
