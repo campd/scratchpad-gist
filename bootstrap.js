@@ -370,6 +370,7 @@ ScratchpadGist.prototype = {
    */
   request: function(options) {
     let xhr = new this.win.XMLHttpRequest();
+    xhr.mozBackgroundRequest = true;
 
     xhr.onreadystatechange = function() {
       if (xhr.readyState != 4)
