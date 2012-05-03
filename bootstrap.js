@@ -598,8 +598,11 @@ ScratchpadGist.prototype = {
       path: "/gists/" + this.attachedGist.id,
       args: {
         description: null,
-        files: this.getFile()
-      }
+        files: this.getFile(),
+      },
+      success: function(response) {
+        this.attached(response);
+      }.bind(this)
     });
   },
 
