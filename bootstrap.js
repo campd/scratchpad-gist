@@ -314,7 +314,7 @@ ScratchpadGist.prototype = {
     let items = this.doc.querySelectorAll("#sp-gist-toolbar toolbarbutton, #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
-    let own = attached && (this.attachedGist.user.id == this.authUser);
+    let own = attached && this.attachedGist.user && (this.attachedGist.user.id == this.authUser);
     let multifile = this.attachedGist && Object.getOwnPropertyNames(this.attachedGist.files).length > 1;
 
     for (var i = 0; i < items.length; i++) {

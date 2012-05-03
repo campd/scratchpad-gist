@@ -8,5 +8,4 @@ bootstrap.js can also be run directly from a browser-context scratchpad.
 TODO
 ----
 
-* Make sure things work on anonymous gists.
-* Anonymous gist creation.
+* Anonymous gist creation?
