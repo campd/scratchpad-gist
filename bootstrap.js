@@ -2,22 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-if (Cc) {
-  var loadedInScratchpad = true;
-} else {
-  var loadedInScratchpad = false;
-
-  var Cc = Components.classes;
-  var Ci = Components.interfaces;
-  var Cu = Components.utils;
-  Cu.import("resource://gre/modules/Services.jsm");
+var __SCRATCHPAD__ = !(typeof(window) == "undefined");
+if (__SCRATCHPAD__ && (typeof(window.gBrowser) == "undefined")) {
+  throw new Error("Must be run in a browser scratchpad.");
 }
 
-var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"]
-  .getService(Ci.nsIWindowMediator);
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
-var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"]
-  .getService(Ci.nsIPromptService);
+Cu.import("resource://gre/modules/Services.jsm");
 
 var kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
 var kAuthIDPref = "devtools.scratchpad.gist.authid";
@@ -410,7 +404,7 @@ ScratchpadGist.prototype = {
     let username = {value:null};
     let password = {value:null};
     let check = {value:false};
-    promptService.promptUsernameAndPassword(null, "GitHub Credentials", "Enter your github username and credentials.",
+    Services.prompt.promptUsernameAndPassword(null, "GitHub Credentials", "Enter your github username and credentials.",
       username, password, "", check);
 
     let auth = "Basic " + this.win.btoa(username.value + ':' + password.value);
@@ -477,7 +471,7 @@ ScratchpadGist.prototype = {
   attach: function() {
     let val = {value: null};
     let check = {value:false};
-    promptService.prompt(
+    Services.prompt.prompt(
       this.win, "Attach to Gist", "Enter the Gist ID or URL",  val, "", check
     );
 
@@ -628,24 +622,24 @@ var WindowListener = {
 function startup(data, reason)
 {
   // Should set a type in scratchpad.
-  let e = windowMediator.getEnumerator(null);
+  let e = Services.wm.getEnumerator(null);
   while (e.hasMoreElements()) {
     attachWindow(e.getNext());
   }
-  windowMediator.addListener(WindowListener);
+  Services.wm.addListener(WindowListener);
 
   // When loading from scratchpad, stash the listener
   // on the window object so we get the right one during
   // shutdown.
-  if (loadedInScratchpad) {
-    window._scratchpadGistListener = WindowListener;
+  if (__SCRATCHPAD__) {
+    window.document.setUserData("scratchpadGistListener", WindowListener, null);
   }
 }
 
 function shutdown(data, reason)
 {
   // Should set a type in scratchpad.
-  let e = windowMediator.getEnumerator(null);
+  let e = Services.wm.getEnumerator(null);
   while (e.hasMoreElements()) {
     let win = e.getNext();
 
@@ -664,23 +658,19 @@ function shutdown(data, reason)
     }
   }
 
-  if (loadedInScratchpad) {
-    // If we were loaded from a scratchpad, we need to remove the
-    // listener added by the previous run.
-    if (window._scratchpadGistListener) {
-      windowMediator.removeListener(window._scratchpadGistListener);
-    }
-  } else {
-    // Otherwise we just use the same WindowListener we added.
-    windowMediator.removeListener(WindowListener);
+  // If we were loaded from a scratchpad, we need to remove the
+  // listener added by the previous run.  Otherwise it's safe
+  // to remove WindowListener directly.
+  let listener = __SCRATCHPAD__ ? window.document.getUserData("scratchpadGistListener") : WindowListener;
+  if (listener) {
+    Services.wm.removeListener(listener);
   }
 }
 
 function install(data, reason) {}
 function uninstall(data, reason) {}
 
-if (loadedInScratchpad) {
+if (__SCRATCHPAD__) {
   shutdown();
   startup();
 }
-
