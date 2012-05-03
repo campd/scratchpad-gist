@@ -486,7 +486,6 @@ ScratchpadGist.prototype = {
       path: "/gists/" + id,
       err: "Could not attach to the Gist: ",
       success: function(response) {
-        this.load(response);
         this.attached(response);
       }.bind(this),
       error: function() {
