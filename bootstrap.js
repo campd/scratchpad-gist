@@ -73,52 +73,38 @@ ScratchpadGist.prototype = {
     this.removeStyles();
   },
 
-  request: function(options) {
-    let xhr = new this.win.XMLHttpRequest();
+  /**
+   * A few dom helpers...
+   */
 
-    xhr.onreadystatechange = function() {
-      if (xhr.readyState != 4)
-        return;
-      if (xhr.status >= 200 && xhr.status < 400) {
-        if (options.success) options.success(JSON.parse(xhr.responseText));
-      } else {
-        if (typeof(options.err) == "function") {
-          options.err(xhr);
-        } else {
-          try {
-            let response = JSON.parse(xhr.responseText)
-            let prefix = typeof(options.err) == "string" ? options.err : "The request returned an error: ";
-            var label = prefix + response.message + ".";
-          } catch(ex) {
-            var label = "Request could not be completed.";
-          }
-          this.notify(this.nbox.PRIORITY_CRITICAL_HIGH, label);
-        }
-      }
-    }.bind(this);
-
-    xhr.open(options.method || "GET",
-     "https://api.github.com" + options.path,
-     true, null, null);
-
-    xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
-    xhr.send(options.args ? JSON.stringify(options.args) : "");
-  },
-
-  defaultError: function(prefix, xhr) {
-  },
-
-  notify: function(priority, label, buttons) {
-    let notification = this.nbox.getNotificationWithValue("gist-notification");
-    if (notification) {
-      this.nbox.removeNotification(notification);
+  clear: function(elt) {
+    while (elt.hasChildNodes()) {
+      elt.removeChild(elt.firstChild);
     }
-
-    this.nbox.appendNotification(
-      label, "gist-notification", null, priority, buttons, null
-    );
   },
 
+  addChild: function(parent, tag, attributes) {
+    let element = this.doc.createElement(tag);
+    for each (var item in Object.getOwnPropertyNames(attributes)) {
+      element.setAttribute(item, attributes[item]);
+    }
+    parent.appendChild(element);
+    return element;
+  },
+
+  addCommand: function(options) {
+    let command = this.doc.createElement("command");
+    command.setAttribute("id", options.id);
+    if (options.label) {
+      command.setAttribute("label", options.label);
+    }
+    command.addEventListener("command", options.handler, true);
+    this.commandset.appendChild(command);
+  },
+
+  /**
+   * Add the devtools stylesheets to the scratchpad.
+   */
   addStyles: function() {
     let root = this.doc.getElementsByTagName('window')[0];
 
@@ -135,37 +121,21 @@ ScratchpadGist.prototype = {
     root.parentNode.insertBefore(proc, root);
     procs.push(proc);
 
-    this.doc.gistProcs = procs;
+    // Store the processing instructions for removal at shutdown.
+    this.gistProcs = procs;
   },
 
+  /**
+   * Clear out processing instructions previously added in addStyles().
+   */
   removeStyles: function() {
-    // Clear out old processing instructions...
-    let procs = this.win.gistProcs;
+    let procs = this.gistProcs;
     if (procs) {
       for each (let proc in procs) {
         proc.parentNode.removeChild(proc);
       }
       delete this.win.gistProcs;
     }
-  },
-
-  addCommand: function(options) {
-    let command = this.doc.createElement("command");
-    command.setAttribute("id", options.id);
-    if (options.label) {
-      command.setAttribute("label", options.label);
-    }
-    command.addEventListener("command", options.handler, true);
-    this.commandset.appendChild(command);
-  },
-
-  addChild: function(parent, tag, attributes) {
-    let element = this.doc.createElement(tag);
-    for each (var item in Object.getOwnPropertyNames(attributes)) {
-      element.setAttribute(item, attributes[item]);
-    }
-    parent.appendChild(element);
-    return element;
   },
 
   addCommands: function() {
@@ -395,12 +365,58 @@ ScratchpadGist.prototype = {
     }
   },
 
-  clear: function(elt) {
-    while (elt.hasChildNodes()) {
-      elt.removeChild(elt.firstChild);
-    }
+  /**
+   * Issue a github API request.
+   */
+  request: function(options) {
+    let xhr = new this.win.XMLHttpRequest();
+
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState != 4)
+        return;
+      if (xhr.status >= 200 && xhr.status < 400) {
+        if (options.success) options.success(JSON.parse(xhr.responseText));
+      } else {
+        if (typeof(options.err) == "function") {
+          options.err(xhr);
+        } else {
+          try {
+            let response = JSON.parse(xhr.responseText)
+            let prefix = typeof(options.err) == "string" ? options.err : "The request returned an error: ";
+            var label = prefix + response.message + ".";
+          } catch(ex) {
+            var label = "Request could not be completed.";
+          }
+          this.notify(this.nbox.PRIORITY_CRITICAL_HIGH, label);
+        }
+      }
+    }.bind(this);
+
+    xhr.open(options.method || "GET",
+     "https://api.github.com" + options.path,
+     true, null, null);
+
+    xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
+    xhr.send(options.args ? JSON.stringify(options.args) : "");
   },
 
+  /**
+   * Notify the user with the notification box.
+   */
+  notify: function(priority, label, buttons) {
+    let notification = this.nbox.getNotificationWithValue("gist-notification");
+    if (notification) {
+      this.nbox.removeNotification(notification);
+    }
+
+    this.nbox.appendNotification(
+      label, "gist-notification", null, priority, buttons, null
+    );
+  },
+
+  /**
+   * Show the signin dialog and start the authentication process.
+   */
   signIn: function() {
     let username = {value:null};
     let password = {value:null};
@@ -412,6 +428,10 @@ ScratchpadGist.prototype = {
     this.findAuth(auth);
   },
 
+  /**
+   * Try to find an existing authorization for this application.  If one is
+   * not found, this method will call createAuth() to create one.
+   */
   findAuth: function(auth) {
     // Find an existing Scratchpad Gist authorization.
     this.request({
@@ -422,7 +442,7 @@ ScratchpadGist.prototype = {
       success: function(response) {
         for each (let authorization in response) {
           if (authorization.app.name == kAuthNote + " (API)") {
-            this.authorized(auth, authorization);
+            this.authorized(authorization);
             return;
           }
         }
@@ -431,42 +451,62 @@ ScratchpadGist.prototype = {
     });
   },
 
+  /**
+   * Create a gist authorization for this application.
+   */
   createAuth: function(auth) {
     this.request({
       method: "POST",
       path: "/authorizations",
       auth: auth,
-      erro: "Couldn't log in: ",
+      error: "Couldn't log in: ",
       args: {
         scopes: ["gist"],
         note: kAuthNote,
         note_url: null
       },
       success: function(response) {
-        this.authorized(auth, response);
+        this.authorized(response);
       }.bind(this)
     });
   },
 
-  authorized: function(auth, authorization) {
+  /**
+   * Now that we've gotten an authorization token, request user
+   * information so we know who we are.
+   */
+  authorized: function(authorization) {
     // Fetch information about the authorized user.
     this.request({
       path: "/user",
       auth: "token " + authorization.token,
       success: function(response) {
+        // Done logging in, set the auth preferences.
         Services.prefs.setCharPref(kAuthTokenPref, authorization.token);
         Services.prefs.setCharPref(kUserPref, response.id);
-        Services.obs.notifyObservers(null, "sp-gist-auth", "");
         this.notify(this.nbox.PRIORITY_INFO_HIGH, "Logged in as " + response.name + ".");
+
+        // Notify other scratchpad windows that we're logged in.  This will
+        // refresh the UI.
+        Services.obs.notifyObservers(null, "sp-gist-auth", "");
       }.bind(this)
     });
   },
 
+  /**
+   * Forget the currently logged-in user.
+   */
   signOut: function() {
     Services.prefs.clearUserPref(kAuthTokenPref);
+
+    // Notify other scratchpad windows that we're logged in.  This will
+    // refresh the UI.
     Services.obs.notifyObservers(null, "sp-gist-auth", "");
   },
 
+  /**
+   * Prompt the user to attach to a gist.
+   */
   attach: function() {
     let val = {value: null};
     let check = {value:false};
@@ -475,6 +515,8 @@ ScratchpadGist.prototype = {
     );
 
     let id = val.value;
+
+    // If a URL was specified, pull out the gist id.
     let gistRE = new RegExp("gist.github.com/(.*)");
     let matches = id.match(gistRE);
     if (matches) {
@@ -487,20 +529,13 @@ ScratchpadGist.prototype = {
       success: function(response) {
         this.attached(response);
       }.bind(this),
-      error: function() {
-        this.win.alert("Couldn't find gist.");
-      }.bind(this)
+      error: "Couldn't find gist."
     });
   },
 
-  attached: function(gist) {
-    this.attachedGist = gist;
-    if (!this.attachedFile) {
-      this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
-    }
-    this.updateUI();
-  },
-
+  /**
+   * Fork the currently-attached gist.
+   */
   fork: function() {
     this.request({
       method: "POST",
@@ -511,11 +546,14 @@ ScratchpadGist.prototype = {
     });
   },
 
+  /**
+   * Fetch the currently-attached gist from the server and load
+   * it in to the scratchpad.
+   *
+   * @param string version optional
+   *   Optionally specifies the specific version to fetch.
+   */
   refresh: function(version) {
-    if (!this.attachedGist) {
-      this.win.alert("Not attached to a gist.");
-      return;
-    }
     let path = "/gists/" + this.attachedGist.id;
     if (version) {
         path += "/" + version;
@@ -529,7 +567,47 @@ ScratchpadGist.prototype = {
     });
   },
 
-  _getFile: function() {
+  /**
+   * Post the current contents of the scratchpad as a new gist.
+   * Attaches to the new gist.
+   *
+   * @param boolean pub
+   *   True to create a public gist.
+   */
+  create: function(pub) {
+    this.request({
+      method: "POST",
+      path: "/gists",
+      args: {
+        description: null,
+        public: pub,
+        files: this.getFile()
+      },
+      success: function(response) {
+        this.attached(response);
+      }.bind(this)
+    });
+  },
+
+  /**
+   * Upload the contents of the scratchpad to the currently-attached gist.
+   */
+  update: function() {
+    this.request({
+      method: "PATCH",
+      path: "/gists/" + this.attachedGist.id,
+      args: {
+        description: null,
+        files: this.getFile()
+      }
+    });
+  },
+
+  /**
+   * Return a files object for the current object, as needed by
+   * gist API requests.
+   */
+  getFile: function() {
     let files = {};
 
     if (this.attachedFilename) {
@@ -551,34 +629,27 @@ ScratchpadGist.prototype = {
     return files;
   },
 
-  create: function(pub) {
-    this.request({
-      method: "POST",
-      path: "/gists",
-      args: {
-        description: null,
-        public: pub,
-        files: this._getFile()
-      },
-      success: function(response) {
-        this.attached(response);
-      }.bind(this)
-    });
+  /**
+   * Called when we've attached to a gist.
+   */
+  attached: function(gist) {
+    this.attachedGist = gist;
+    if (!this.attachedFile) {
+      this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    }
+    this.updateUI();
   },
 
-  update: function() {
-    this.request({
-      method: "PATCH",
-      path: "/gists/" + this.attachedGist.id,
-      args: {
-        description: null,
-        files: this._getFile()
-      }
-    });
-  },
-
+  /**
+   * Load the contents of the given gist into the scratchpad.
+   *
+   * @param object gist
+   *   The gist as returned by an API request.
+   */
   load: function(gist) {
     let file = null;
+
+    // Try to find the currently-selected subfile.
     for (var i in gist.files) {
       if (gist.files[i].filename == this.attachedFilename) {
         this.loadFile(gist, gist.files[i]);
@@ -591,6 +662,9 @@ ScratchpadGist.prototype = {
     this.loadFile(gist, gist.files[this.attachedFilename]);
   },
 
+  /**
+   * Load a specific file's contents from the gist.
+   */
   loadFile: function(gist, file) {
     this.win.Scratchpad.setText(file.content);
     this.win.Scratchpad.setFilename(file.filename);
