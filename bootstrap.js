@@ -7,6 +7,12 @@ if (__SCRATCHPAD__ && (typeof(window.gBrowser) == "undefined")) {
   throw new Error("Must be run in a browser scratchpad.");
 }
 
+// If we're developing in scratchpad, shutdown the previous run
+// before continuing.
+if (__SCRATCHPAD__ && (typeof(shutdown) != "undefined")) {
+  shutdown();
+}
+
 var Cc = Components.classes;
 var Ci = Components.interfaces;
 var Cu = Components.utils;
@@ -710,13 +716,6 @@ function startup(data, reason)
     attachWindow(e.getNext());
   }
   Services.wm.addListener(WindowListener);
-
-  // When loading from scratchpad, stash the listener
-  // on the window object so we get the right one during
-  // shutdown.
-  if (__SCRATCHPAD__) {
-    window.document.setUserData("scratchpadGistListener", WindowListener, null);
-  }
 }
 
 function shutdown(data, reason)
@@ -741,19 +740,13 @@ function shutdown(data, reason)
     }
   }
 
-  // If we were loaded from a scratchpad, we need to remove the
-  // listener added by the previous run.  Otherwise it's safe
-  // to remove WindowListener directly.
-  let listener = __SCRATCHPAD__ ? window.document.getUserData("scratchpadGistListener") : WindowListener;
-  if (listener) {
-    Services.wm.removeListener(listener);
-  }
+  Services.wm.removeListener(WindowListener);
 }
 
 function install(data, reason) {}
 function uninstall(data, reason) {}
 
+// If running in the scratchpad, run startup manually.
 if (__SCRATCHPAD__) {
-  shutdown();
   startup();
 }
