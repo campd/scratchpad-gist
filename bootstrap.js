@@ -255,7 +255,7 @@ ScratchpadGist.prototype = {
     toolbar.setAttribute("hidden", "true");
 
     this.addChild(toolbar, "toolbarbutton", {
-      id: "highlighter-closebutton",
+      class: "devtools-closebutton",
       command: "sp-gist-cmd-detach"
     });
 
@@ -740,7 +740,9 @@ function shutdown(data, reason)
     }
   }
 
-  Services.wm.removeListener(WindowListener);
+  if (WindowListener) {
+    Services.wm.removeListener(WindowListener);
+  }
 }
 
 function install(data, reason) {}
