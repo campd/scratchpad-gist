@@ -7,7 +7,15 @@ if (__SCRATCHPAD__ && (typeof(window.gBrowser) == "undefined")) {
   throw new Error("Must be run in a browser scratchpad.");
 }
 
-var { classes: Cc, interfaces: Ci, utils: Cu } = Components;
+// If we're developing in scratchpad, shutdown the previous run
+// before continuing.
+if (__SCRATCHPAD__ && (typeof(shutdown) != "undefined")) {
+  shutdown();
+}
+
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -262,12 +270,15 @@ ScratchpadGist.prototype = {
     let item = this.doc.getElementById("sp-gist-attach");
     item.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
-    let items = this.doc.querySelectorAll("#sp-toolbar toolbarbutton, #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
     let own = attached && this.attachedGist.user && (this.attachedGist.user.id == this.authUser);
     let multifile = this.attachedGist && Object.getOwnPropertyNames(this.attachedGist.files).length > 1;
 
+    // Update the visibility of the toolbar buttons and menu items.
+    // They have a set of class names which correspond to state.  A
+    // given item is hidden if any of its requirements are not met.
+    let items = this.doc.querySelectorAll("#sp-gist-toolbar toolbarbutton, #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
     for (var i = 0; i < items.length; i++) {
       let item = items[i];
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
@@ -277,15 +288,20 @@ ScratchpadGist.prototype = {
         (item.classList.contains("sp-gist-other") && own) ||
         (item.classList.contains("sp-gist-multifile") && !multifile))
 
-        item.setAttribute("hidden", true);
+        item.setAttribute("hidden", "true");
       else
         item.removeAttribute("hidden");
     }
 
-    if (this.attachedGist) {
+    if (!attached) {
+      this.toolbar.setAttribute("hidden", "true");
+    } else {
+      // Update the toolbar and label
+      this.toolbar.removeAttribute("hidden");
       this.toolbarLink.setAttribute("href", this.attachedGist.html_url);
       this.toolbarLink.setAttribute("value", this.attachedGist.html_url);
 
+      // Update the history popup from the attached gist...
       this.clear(this.historyPopup);
 
       this.attachedGist.history.forEach(function(item) {
@@ -298,6 +314,8 @@ ScratchpadGist.prototype = {
       }.bind(this));
 
       this.fileButton.setAttribute("label", this.attachedFilename);
+
+      // Update the file popup.
       this.clear(this.filesPopup);
       Object.getOwnPropertyNames(this.attachedGist.files).forEach(function(name) {
         let item = this.attachedGist.files[name];
@@ -651,13 +669,6 @@ function startup(data, reason)
     attachWindow(e.getNext());
   }
   Services.wm.addListener(WindowListener);
-
-  // When loading from scratchpad, stash the listener
-  // on the window object so we get the right one during
-  // shutdown.
-  if (__SCRATCHPAD__) {
-    window.document.setUserData("scratchpadGistListener", WindowListener, null);
-  }
 }
 
 function shutdown(data, reason)
@@ -697,20 +708,16 @@ function shutdown(data, reason)
     win.document.querySelector("#sp-gist-owned").remove();
   }
 
-  // If we were loaded from a scratchpad, we need to remove the
-  // listener added by the previous run.  Otherwise it's safe
-  // to remove WindowListener directly.
-  let listener = __SCRATCHPAD__ ? window.document.getUserData("scratchpadGistListener") : WindowListener;
-  if (listener) {
-    Services.wm.removeListener(listener);
+  if (WindowListener) {
+    Services.wm.removeListener(WindowListener);
   }
 }
 
 function install(data, reason) { startup(); }
 function uninstall(data, reason) { shutdown(); }
 
+// If running in the scratchpad, run startup manually.
 if (__SCRATCHPAD__) {
-  shutdown();
   startup();
 }
 
