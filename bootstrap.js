@@ -20,13 +20,13 @@ var Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 
 // Pref stores the auth token we were given by gist.
-var kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
+const kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
 
 // Pref stores the user we authenticated as.
-var kUserPref = "devtools.scratchpad.gist.userid";
+const kUserPref = "devtools.scratchpad.gist.userid";
 
-var kAuthNote = "Scratchpad";
-var kLabelStyle = "color: hsl(210,30%,85%);text-shadow: 0 -1px 0 hsla(210,8%,5%,.45);margin-top: 4px;";
+const kAuthNote = "Scratchpad";
+const kLabelStyle = "margin-top: 4px;";
 
 function strPref(key) Services.prefs.prefHasUserValue(key) ? Services.prefs.getCharPref(key) : null;
 
@@ -38,10 +38,9 @@ function ScratchpadGist(win)
   this.updateUI = this.updateUI.bind(this);
   Services.obs.addObserver(this.updateUI, "sp-gist-auth", false);
 
-  this.addStyles();
   this.addCommands();
   this.addMenu();
-  this.addToolbar();
+  this.addToolbarButtons();
   this.updateUI();
 }
 
@@ -50,7 +49,7 @@ ScratchpadGist.prototype = {
   get authUser() strPref(kUserPref),
 
   get menu() this.doc.getElementById("sp-gist-menu"),
-  get toolbar() this.doc.getElementById("sp-gist-toolbar"),
+  get toolbar() this.doc.getElementById("sp-toolbar"),
   get toolbarLink() this.doc.getElementById("sp-gist-link"),
   get nbox() this.doc.getElementById("scratchpad-notificationbox"),
   get commandset() this.doc.getElementById("sp-gist-commands"),
@@ -68,15 +67,12 @@ ScratchpadGist.prototype = {
     }
 
     this.menu.parentNode.removeChild(this.menu);
-    this.toolbar.parentNode.removeChild(this.toolbar);
     this.commandset.parentNode.removeChild(this.commandset);
 
     let notification = this.nbox.getNotificationWithValue("gist-notification");
     if (notification) {
       this.nbox.removeNotification(notification);
     }
-
-    this.removeStyles();
   },
 
   /**
@@ -108,42 +104,6 @@ ScratchpadGist.prototype = {
     this.commandset.appendChild(command);
   },
 
-  /**
-   * Add the devtools stylesheets to the scratchpad.
-   */
-  addStyles: function() {
-    let root = this.doc.getElementsByTagName('window')[0];
-
-    procs = [];
-    let proc = this.doc.createProcessingInstruction(
-      "xml-stylesheet",
-      "href='chrome://browser/skin/devtools/common.css' type='text/css'");
-    root.parentNode.insertBefore(proc, root);
-    procs.push(proc);
-
-    proc = this.doc.createProcessingInstruction(
-      "xml-stylesheet",
-      "href='chrome://browser/skin/browser.css' type='text/css'");
-    root.parentNode.insertBefore(proc, root);
-    procs.push(proc);
-
-    // Store the processing instructions for removal at shutdown.
-    this.gistProcs = procs;
-  },
-
-  /**
-   * Clear out processing instructions previously added in addStyles().
-   */
-  removeStyles: function() {
-    let procs = this.gistProcs;
-    if (procs) {
-      for each (let proc in procs) {
-        proc.parentNode.removeChild(proc);
-      }
-      delete this.win.gistProcs;
-    }
-  },
-
   addCommands: function() {
     let commands = this.doc.createElement("commandset");
     commands.setAttribute("id", "sp-gist-commands");
@@ -152,47 +112,47 @@ ScratchpadGist.prototype = {
     this.addCommand({
       id: "sp-gist-cmd-signin",
       label: "Sign In",
-      handler: function() { this.signIn() }.bind(this)
+      handler: () => this.signIn()
     });
     this.addCommand({
       id: "sp-gist-cmd-signout",
       label: "Sign Out",
-      handler: function() { this.signOut(); }.bind(this)
+      handler: () => this.signOut()
     });
     this.addCommand({
       id: "sp-gist-cmd-attach",
       label: "Attach to Gist...",
-      handler: function() { this.attach(); }.bind(this)
+      handler: () => this.attach()
     });
     this.addCommand({
       id: "sp-gist-cmd-detach",
       label: "Detach from Gist",
-      handler: function() { this.attached(null); }.bind(this)
+      handler: () => this.attached(null)
     });
     this.addCommand({
       id: "sp-gist-cmd-create-private",
       label: "Create Private Gist",
-      handler: function() { this.create(false) }.bind(this)
+      handler: () => this.create(false)
     });
     this.addCommand({
       id: "sp-gist-cmd-create-public",
       label: "Create Public Gist",
-      handler: function() { this.create(true) }.bind(this)
+      handler: () => this.create(true)
     });
     this.addCommand({
       id: "sp-gist-cmd-refresh",
       label: "Load Latest",
-      handler: function() { this.refresh(); }.bind(this)
+      handler: () => this.refresh()
     });
     this.addCommand({
       id: "sp-gist-cmd-update",
       label: "Post",
-      handler: function() { this.update(); }.bind(this)
+      handler: () => this.update()
     });
     this.addCommand({
       id: "sp-gist-cmd-fork",
       label: "Fork",
-      handler: function() { this.fork(); }.bind(this)
+      handler: () => this.fork()
     });
   },
 
@@ -248,29 +208,22 @@ ScratchpadGist.prototype = {
     menubar.insertBefore(menu, help);
   },
 
-  addToolbar: function() {
-    let toolbar = this.doc.createElement("toolbar");
-    toolbar.setAttribute("id", "sp-gist-toolbar");
-    toolbar.setAttribute("class", "devtools-toolbar");
-    toolbar.setAttribute("hidden", "true");
+  addToolbarButtons: function() {
+    let toolbar = this.toolbar;
 
-    this.addChild(toolbar, "toolbarbutton", {
-      class: "devtools-closebutton",
-      command: "sp-gist-cmd-detach"
+    this.addChild(toolbar, "label", {
+      style: kLabelStyle,
+      id: "sp-gist-label",
+      value: "Gist:"
     });
 
     this.addChild(toolbar, "label", {
       style: kLabelStyle,
-      value: "Attached to Gist:"
-    });
-
-    this.addChild(toolbar, "label", {
       id: "sp-gist-link",
       class: "text-link",
-      style: kLabelStyle
     })
 
-    this.addChild(toolbar, "toolbarspring", {});
+    this.addChild(toolbar, "toolbarspring", {id: "sp-gist-springy"});
 
     let fileSelector = this.addChild(toolbar, "toolbarbutton", {
       id: "sp-gist-file",
@@ -284,12 +237,14 @@ ScratchpadGist.prototype = {
 
     this.addChild(toolbar, "toolbarbutton", {
       command: "sp-gist-cmd-refresh",
+      id: "sp-gist-refresh",
       class: "devtools-toolbarbutton"
     });
 
     let history = this.addChild(toolbar, "toolbarbutton", {
       label: "History",
       class: "devtools-toolbarbutton",
+      id: "sp-gist-history-button",
       type: "menu"
     });
 
@@ -306,8 +261,6 @@ ScratchpadGist.prototype = {
       command: "sp-gist-cmd-update",
       class: "devtools-toolbarbutton sp-gist-owned"
     });
-
-    this.nbox.parentNode.insertBefore(toolbar, this.nbox);
   },
 
   updateUI: function() {
@@ -711,7 +664,7 @@ var WindowListener = {
 function startup(data, reason)
 {
   // Should set a type in scratchpad.
-  let e = Services.wm.getEnumerator(null);
+  let e = Services.wm.getEnumerator("devtools:scratchpad");
   while (e.hasMoreElements()) {
     attachWindow(e.getNext());
   }
@@ -721,7 +674,7 @@ function startup(data, reason)
 function shutdown(data, reason)
 {
   // Should set a type in scratchpad.
-  let e = Services.wm.getEnumerator(null);
+  let e = Services.wm.getEnumerator("devtools:scratchpad");
   while (e.hasMoreElements()) {
     let win = e.getNext();
 
@@ -730,14 +683,29 @@ function shutdown(data, reason)
       delete win.ScratchpadGist;
     }
 
+    // remove menu
     let menu = win.document.getElementById("sp-gist-menu");
     if (menu) {
       menu.parentNode.removeChild(menu);
     }
-    let toolbar = win.document.getElementById("sp-gist-toolbar");
-    if (toolbar) {
-      toolbar.parentNode.removeChild(toolbar);
-    }
+
+    // remove toolbar buttons and things
+    let toolbar = win.document.getElementById("sp-toolbar");
+    win.document.getElementById("sp-gist-label").remove();
+
+    win.document.getElementById("sp-gist-link").remove();
+
+    win.document.getElementById("sp-gist-springy").remove();
+
+    win.document.getElementById("sp-gist-file").remove();
+
+    win.document.getElementById("sp-gist-refresh").remove();
+
+    win.document.getElementById("sp-gist-history-button").remove();
+    win.document.getElementById("sp-gist-history").remove();
+
+    win.document.querySelector("#sp-gist-other").remove();
+    win.document.querySelector("#sp-gist-owned").remove();
   }
 
   if (WindowListener) {
@@ -745,10 +713,11 @@ function shutdown(data, reason)
   }
 }
 
-function install(data, reason) {}
-function uninstall(data, reason) {}
+function install(data, reason) { startup(); }
+function uninstall(data, reason) { shutdown(); }
 
 // If running in the scratchpad, run startup manually.
 if (__SCRATCHPAD__) {
   startup();
 }
+
