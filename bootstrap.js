@@ -42,6 +42,7 @@ function ScratchpadGist(win)
 
   this.addCommands();
   this.addMenu();
+  this.addToolbar();
   this.addToolbarButtons();
   this.updateUI();
 }
@@ -51,7 +52,7 @@ ScratchpadGist.prototype = {
   get authUser() strPref(kUserPref),
 
   get menu() this.doc.getElementById("sp-gist-menu"),
-  get toolbar() this.doc.getElementById("sp-toolbar"),
+  get toolbar() this.doc.getElementById("sp-gist-toolbar"),
   get toolbarLink() this.doc.getElementById("sp-gist-link"),
   get nbox() this.doc.getElementById("scratchpad-notificationbox"),
   get commandset() this.doc.getElementById("sp-gist-commands"),
@@ -87,6 +88,8 @@ ScratchpadGist.prototype = {
     if (notification) {
       this.nbox.removeNotification(notification);
     }
+    if (this.toolbar)
+      this.toolbar.remove()
   },
 
   /**
@@ -222,6 +225,24 @@ ScratchpadGist.prototype = {
     menubar.insertBefore(menu, help);
   },
 
+  addToolbar: function() {
+    let sp_toolbar = this.doc.getElementById("sp-toolbar");
+
+    let toolbox = this.doc.createElement("toolbox");
+    toolbox.id = "sp-gist-toolbox"
+    toolbox.class = "devtools-toolbar";
+
+    this.doc.documentElement.insertBefore(toolbox, this.nbox);
+
+    sp_toolbar.remove();
+    toolbox.appendChild(sp_toolbar);
+
+    this.addChild(toolbox, "toolbar", {
+      id: "sp-gist-toolbar",
+      class: "devtools-toolbar"
+    });
+  },
+
   addToolbarButtons: function() {
     let toolbar = this.toolbar;
 
@@ -235,7 +256,7 @@ ScratchpadGist.prototype = {
       style: kLabelStyle,
       id: "sp-gist-link",
       class: "text-link",
-    })
+    });
 
     this.addChild(toolbar, "toolbarspring", {id: "sp-gist-springy"});
 
@@ -703,6 +724,7 @@ function shutdown(data, reason)
     }
 
     // remove toolbar buttons and things
+    /*
     let label = win.document.getElementById("sp-gist-label");
     label ? label.remove() : null;
 
@@ -726,6 +748,10 @@ function shutdown(data, reason)
 
     let post = win.document.getElementById("sp-gist-post");
     post ? post.remove() : null;
+
+    let toolbar = win.document.getElementById("sp-gist-toolbar");
+    toolbar ? toolbar.remove() : null;
+    */
   }
 
   if (WindowListener) {
