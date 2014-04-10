@@ -19,6 +19,7 @@ var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
+
 // Pref stores the auth token we were given by gist.
 const kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
 
@@ -27,6 +28,7 @@ const kUserPref = "devtools.scratchpad.gist.userid";
 
 const kAuthNote = "Scratchpad";
 const kLabelStyle = "margin-top: 4px;";
+
 
 function strPref(key) Services.prefs.prefHasUserValue(key) ? Services.prefs.getCharPref(key) : null;
 
@@ -66,8 +68,20 @@ ScratchpadGist.prototype = {
       delete this._authListener;
     }
 
-    this.menu.parentNode.removeChild(this.menu);
-    this.commandset.parentNode.removeChild(this.commandset);
+    this.menu.remove();
+    this.commandset.remove();
+
+    // remove toolbar buttons and things
+    this.doc.getElementById("sp-gist-label").remove();
+    this.toolbarLink.remove();
+    this.doc.getElementById("sp-gist-springy").remove();
+    this.fileButton.remove();
+    this.doc.getElementById("sp-gist-refresh").remove();
+    this.doc.getElementById("sp-gist-history-button").remove();
+    let fork = this.doc.getElementById("sp-gist-fork").remove();
+
+    this.doc.querySelector("#sp-gist-other").remove();
+    this.doc.querySelector("#sp-gist-owned").remove();
 
     let notification = this.nbox.getNotificationWithValue("gist-notification");
     if (notification) {
@@ -253,11 +267,13 @@ ScratchpadGist.prototype = {
     });
 
     this.addChild(toolbar, "toolbarbutton", {
+      id: "sp-gist-fork",
       command: "sp-gist-cmd-fork",
       class: "devtools-toolbarbutton sp-gist-other"
     });
 
     this.addChild(toolbar, "toolbarbutton", {
+      id: "sp-gist-post",
       command: "sp-gist-cmd-update",
       class: "devtools-toolbarbutton sp-gist-owned"
     });
@@ -278,7 +294,7 @@ ScratchpadGist.prototype = {
     // Update the visibility of the toolbar buttons and menu items.
     // They have a set of class names which correspond to state.  A
     // given item is hidden if any of its requirements are not met.
-    let items = this.doc.querySelectorAll("#sp-gist-toolbar toolbarbutton, #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
+    let items = this.doc.querySelectorAll("#sp-gist-label #sp-gist-post #sp-gist-fork #sp-gist-history-button #sp-gist-refresh #sp-gist-file #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
     for (var i = 0; i < items.length; i++) {
       let item = items[i];
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
@@ -293,11 +309,8 @@ ScratchpadGist.prototype = {
         item.removeAttribute("hidden");
     }
 
-    if (!attached) {
-      this.toolbar.setAttribute("hidden", "true");
-    } else {
+    if (attached) {
       // Update the toolbar and label
-      this.toolbar.removeAttribute("hidden");
       this.toolbarLink.setAttribute("href", this.attachedGist.html_url);
       this.toolbarLink.setAttribute("value", this.attachedGist.html_url);
 
@@ -482,6 +495,8 @@ ScratchpadGist.prototype = {
     );
 
     let id = val.value;
+    if (id === null)
+      return;
 
     // If a URL was specified, pull out the gist id.
     let gistRE = new RegExp("gist.github.com/(.*)");
@@ -682,30 +697,35 @@ function shutdown(data, reason)
       win.ScratchpadGist.destroy();
       delete win.ScratchpadGist;
     }
-
-    // remove menu
     let menu = win.document.getElementById("sp-gist-menu");
     if (menu) {
-      menu.parentNode.removeChild(menu);
+      menu.remove();
     }
 
     // remove toolbar buttons and things
-    let toolbar = win.document.getElementById("sp-toolbar");
-    win.document.getElementById("sp-gist-label").remove();
+    let label = win.document.getElementById("sp-gist-label");
+    label ? label.remove() : null;
 
-    win.document.getElementById("sp-gist-link").remove();
+    let link = win.document.getElementById("sp-gist-link");
+    link ? link.remove() : null;
 
-    win.document.getElementById("sp-gist-springy").remove();
+    let springy = win.document.getElementById("sp-gist-springy");
+    springy ? springy.remove() : null;
 
-    win.document.getElementById("sp-gist-file").remove();
+    let file = win.document.getElementById("sp-gist-file");
+    file ? file.remove() : null;
 
-    win.document.getElementById("sp-gist-refresh").remove();
+    let refresh = win.document.getElementById("sp-gist-refresh");
+    refresh ? refresh.remove() : null;
 
-    win.document.getElementById("sp-gist-history-button").remove();
-    win.document.getElementById("sp-gist-history").remove();
+    let history = win.document.getElementById("sp-gist-history-button");
+    history ? history.remove() : null;
 
-    win.document.querySelector("#sp-gist-other").remove();
-    win.document.querySelector("#sp-gist-owned").remove();
+    let fork = win.document.getElementById("sp-gist-fork");
+    fork ? fork.remove() : null;
+
+    let post = win.document.getElementById("sp-gist-post");
+    post ? post.remove() : null;
   }
 
   if (WindowListener) {
@@ -713,11 +733,10 @@ function shutdown(data, reason)
   }
 }
 
-function install(data, reason) { startup(); }
-function uninstall(data, reason) { shutdown(); }
+function install(data, reason) { }
+function uninstall(data, reason) { }
 
 // If running in the scratchpad, run startup manually.
 if (__SCRATCHPAD__) {
   startup();
 }
-
