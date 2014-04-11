@@ -13,9 +13,8 @@ if (__SCRATCHPAD__ && (typeof(shutdown) != "undefined")) {
   shutdown();
 }
 
-var Cc = Components.classes;
-var Ci = Components.interfaces;
-var Cu = Components.utils;
+// should be consts but redefining makes this a pain.
+var { interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -79,17 +78,23 @@ ScratchpadGist.prototype = {
     this.fileButton.remove();
     this.doc.getElementById("sp-gist-refresh").remove();
     this.doc.getElementById("sp-gist-history-button").remove();
-    let fork = this.doc.getElementById("sp-gist-fork").remove();
-
-    this.doc.querySelector("#sp-gist-other").remove();
-    this.doc.querySelector("#sp-gist-owned").remove();
+    this.doc.getElementById("sp-gist-fork").remove();
+    this.doc.getElementById("sp-gist-post").remove();
 
     let notification = this.nbox.getNotificationWithValue("gist-notification");
     if (notification) {
       this.nbox.removeNotification(notification);
     }
+
     if (this.toolbar)
-      this.toolbar.remove()
+      this.toolbar.remove();
+
+    let tbar = this.doc.getElementById("sp-toolbar");
+    tbar.remove();
+
+    this.doc.getElementById("sp-gist-toolbox").remove();
+
+    this.doc.documentElement.insertBefore(tbar, this.nbox);
   },
 
   /**
@@ -104,7 +109,7 @@ ScratchpadGist.prototype = {
 
   addChild: function(parent, tag, attributes) {
     let element = this.doc.createElement(tag);
-    for each (var item in Object.getOwnPropertyNames(attributes)) {
+    for (let item of Object.getOwnPropertyNames(attributes)) {
       element.setAttribute(item, attributes[item]);
     }
     parent.appendChild(element);
@@ -229,7 +234,7 @@ ScratchpadGist.prototype = {
     let sp_toolbar = this.doc.getElementById("sp-toolbar");
 
     let toolbox = this.doc.createElement("toolbox");
-    toolbox.id = "sp-gist-toolbox"
+    toolbox.id = "sp-gist-toolbox";
     toolbox.class = "devtools-toolbar";
 
     this.doc.documentElement.insertBefore(toolbox, this.nbox);
@@ -283,7 +288,7 @@ ScratchpadGist.prototype = {
       type: "menu"
     });
 
-    let historyPopup = this.addChild(history, "menupopup", {
+    this.addChild(history, "menupopup", {
       id: "sp-gist-history"
     });
 
@@ -301,11 +306,11 @@ ScratchpadGist.prototype = {
   },
 
   updateUI: function() {
-    let item = this.doc.getElementById("sp-gist-auth");
-    item.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
+    let auth = this.doc.getElementById("sp-gist-auth");
+    auth.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
 
-    let item = this.doc.getElementById("sp-gist-attach");
-    item.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
+    let attach = this.doc.getElementById("sp-gist-attach");
+    attach.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
@@ -316,8 +321,7 @@ ScratchpadGist.prototype = {
     // They have a set of class names which correspond to state.  A
     // given item is hidden if any of its requirements are not met.
     let items = this.doc.querySelectorAll("#sp-gist-label #sp-gist-post #sp-gist-fork #sp-gist-history-button #sp-gist-refresh #sp-gist-file #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
-    for (var i = 0; i < items.length; i++) {
-      let item = items[i];
+    for (let item of items) {
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
         (item.classList.contains("sp-gist-attached") && !attached) ||
         (item.classList.contains("sp-gist-detached") && attached) ||
@@ -381,12 +385,13 @@ ScratchpadGist.prototype = {
         if (typeof(options.err) == "function") {
           options.err(xhr);
         } else {
+          let label;
           try {
-            let response = JSON.parse(xhr.responseText)
+            let response = JSON.parse(xhr.responseText);
             let prefix = typeof(options.err) == "string" ? options.err : "The request returned an error: ";
-            var label = prefix + response.message + ".";
+            label = prefix + response.message + ".";
           } catch(ex) {
-            var label = "Request could not be completed.";
+            label = "Request could not be completed.";
           }
           this.notify(this.nbox.PRIORITY_CRITICAL_HIGH, label);
         }
@@ -425,7 +430,7 @@ ScratchpadGist.prototype = {
     Services.prompt.promptUsernameAndPassword(null, "GitHub Credentials", "Enter your github username and credentials.",
       username, password, "", check);
 
-    let auth = "Basic " + this.win.btoa(username.value + ':' + password.value);
+    let auth = "Basic " + this.win.btoa(username.value + ":" + password.value);
     this.findAuth(auth);
   },
 
@@ -441,7 +446,7 @@ ScratchpadGist.prototype = {
       err: "Couldn't log in: ",
       auth: auth,
       success: function(response) {
-        for each (let authorization in response) {
+        for (let authorization of response) {
           if (authorization.app.name == kAuthNote + " (API)") {
             this.authorized(authorization);
             return;
@@ -615,15 +620,15 @@ ScratchpadGist.prototype = {
    */
   getFile: function() {
     let files = {};
+    let filename = "scratchpad.js";
 
     if (this.attachedFilename) {
-      var filename = this.attachedFilename;
+      filename = this.attachedFilename;
     } else {
       let scratchpad = this.win.Scratchpad;
-      var filename = "scratchpad.js";
       if (scratchpad.filename) {
         filename = scratchpad.filename;
-        let lastSep = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+        let lastSep = Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\"));
         if (lastSep > -1) {
           filename = filename.substring(lastSep + 1);
         }
@@ -653,10 +658,8 @@ ScratchpadGist.prototype = {
    *   The gist as returned by an API request.
    */
   load: function(gist) {
-    let file = null;
-
     // Try to find the currently-selected subfile.
-    for (var i in gist.files) {
+    for (let i in gist.files) {
       if (gist.files[i].filename == this.attachedFilename) {
         this.loadFile(gist, gist.files[i]);
         return;
@@ -686,6 +689,7 @@ function attachWindow(win) {
 var WindowListener = {
   onOpenWindow: function(win) {
     // Wait for the window to finish loading
+    // XXX redefining "win" I don't even...
     let win = win.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIDOMWindowInternal || Ci.nsIDOMWindow);
     win.addEventListener("load", function onLoad() {
@@ -722,36 +726,6 @@ function shutdown(data, reason)
     if (menu) {
       menu.remove();
     }
-
-    // remove toolbar buttons and things
-    /*
-    let label = win.document.getElementById("sp-gist-label");
-    label ? label.remove() : null;
-
-    let link = win.document.getElementById("sp-gist-link");
-    link ? link.remove() : null;
-
-    let springy = win.document.getElementById("sp-gist-springy");
-    springy ? springy.remove() : null;
-
-    let file = win.document.getElementById("sp-gist-file");
-    file ? file.remove() : null;
-
-    let refresh = win.document.getElementById("sp-gist-refresh");
-    refresh ? refresh.remove() : null;
-
-    let history = win.document.getElementById("sp-gist-history-button");
-    history ? history.remove() : null;
-
-    let fork = win.document.getElementById("sp-gist-fork");
-    fork ? fork.remove() : null;
-
-    let post = win.document.getElementById("sp-gist-post");
-    post ? post.remove() : null;
-
-    let toolbar = win.document.getElementById("sp-gist-toolbar");
-    toolbar ? toolbar.remove() : null;
-    */
   }
 
   if (WindowListener) {

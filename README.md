@@ -9,3 +9,4 @@ TODO
 ----
 
 * Anonymous gist creation?
+* Two-factor auth?
