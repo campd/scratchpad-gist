@@ -13,11 +13,11 @@ if (__SCRATCHPAD__ && (typeof(shutdown) != "undefined")) {
   shutdown();
 }
 
-var Cc = Components.classes;
-var Ci = Components.interfaces;
-var Cu = Components.utils;
+// should be consts but redefining makes this a pain.
+var { interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
+
 
 // Pref stores the auth token we were given by gist.
 const kAuthTokenPref = "devtools.scratchpad.gist.authtoken";
@@ -27,6 +27,7 @@ const kUserPref = "devtools.scratchpad.gist.userid";
 
 const kAuthNote = "Scratchpad";
 const kLabelStyle = "margin-top: 4px;";
+
 
 function strPref(key) Services.prefs.prefHasUserValue(key) ? Services.prefs.getCharPref(key) : null;
 
@@ -40,6 +41,7 @@ function ScratchpadGist(win)
 
   this.addCommands();
   this.addMenu();
+  this.addToolbar();
   this.addToolbarButtons();
   this.updateUI();
 }
@@ -49,7 +51,7 @@ ScratchpadGist.prototype = {
   get authUser() strPref(kUserPref),
 
   get menu() this.doc.getElementById("sp-gist-menu"),
-  get toolbar() this.doc.getElementById("sp-toolbar"),
+  get toolbar() this.doc.getElementById("sp-gist-toolbar"),
   get toolbarLink() this.doc.getElementById("sp-gist-link"),
   get nbox() this.doc.getElementById("scratchpad-notificationbox"),
   get commandset() this.doc.getElementById("sp-gist-commands"),
@@ -66,13 +68,33 @@ ScratchpadGist.prototype = {
       delete this._authListener;
     }
 
-    this.menu.parentNode.removeChild(this.menu);
-    this.commandset.parentNode.removeChild(this.commandset);
+    this.menu.remove();
+    this.commandset.remove();
+
+    // remove toolbar buttons and things
+    this.doc.getElementById("sp-gist-label").remove();
+    this.toolbarLink.remove();
+    this.doc.getElementById("sp-gist-springy").remove();
+    this.fileButton.remove();
+    this.doc.getElementById("sp-gist-refresh").remove();
+    this.doc.getElementById("sp-gist-history-button").remove();
+    this.doc.getElementById("sp-gist-fork").remove();
+    this.doc.getElementById("sp-gist-post").remove();
 
     let notification = this.nbox.getNotificationWithValue("gist-notification");
     if (notification) {
       this.nbox.removeNotification(notification);
     }
+
+    if (this.toolbar)
+      this.toolbar.remove();
+
+    let tbar = this.doc.getElementById("sp-toolbar");
+    tbar.remove();
+
+    this.doc.getElementById("sp-gist-toolbox").remove();
+
+    this.doc.documentElement.insertBefore(tbar, this.nbox);
   },
 
   /**
@@ -87,7 +109,7 @@ ScratchpadGist.prototype = {
 
   addChild: function(parent, tag, attributes) {
     let element = this.doc.createElement(tag);
-    for each (var item in Object.getOwnPropertyNames(attributes)) {
+    for (let item of Object.getOwnPropertyNames(attributes)) {
       element.setAttribute(item, attributes[item]);
     }
     parent.appendChild(element);
@@ -208,6 +230,24 @@ ScratchpadGist.prototype = {
     menubar.insertBefore(menu, help);
   },
 
+  addToolbar: function() {
+    let sp_toolbar = this.doc.getElementById("sp-toolbar");
+
+    let toolbox = this.doc.createElement("toolbox");
+    toolbox.id = "sp-gist-toolbox";
+    toolbox.class = "devtools-toolbar";
+
+    this.doc.documentElement.insertBefore(toolbox, this.nbox);
+
+    sp_toolbar.remove();
+    toolbox.appendChild(sp_toolbar);
+
+    this.addChild(toolbox, "toolbar", {
+      id: "sp-gist-toolbar",
+      class: "devtools-toolbar"
+    });
+  },
+
   addToolbarButtons: function() {
     let toolbar = this.toolbar;
 
@@ -221,7 +261,7 @@ ScratchpadGist.prototype = {
       style: kLabelStyle,
       id: "sp-gist-link",
       class: "text-link",
-    })
+    });
 
     this.addChild(toolbar, "toolbarspring", {id: "sp-gist-springy"});
 
@@ -248,27 +288,29 @@ ScratchpadGist.prototype = {
       type: "menu"
     });
 
-    let historyPopup = this.addChild(history, "menupopup", {
+    this.addChild(history, "menupopup", {
       id: "sp-gist-history"
     });
 
     this.addChild(toolbar, "toolbarbutton", {
+      id: "sp-gist-fork",
       command: "sp-gist-cmd-fork",
       class: "devtools-toolbarbutton sp-gist-other"
     });
 
     this.addChild(toolbar, "toolbarbutton", {
+      id: "sp-gist-post",
       command: "sp-gist-cmd-update",
       class: "devtools-toolbarbutton sp-gist-owned"
     });
   },
 
   updateUI: function() {
-    let item = this.doc.getElementById("sp-gist-auth");
-    item.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
+    let auth = this.doc.getElementById("sp-gist-auth");
+    auth.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
 
-    let item = this.doc.getElementById("sp-gist-attach");
-    item.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
+    let attach = this.doc.getElementById("sp-gist-attach");
+    attach.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
@@ -278,9 +320,8 @@ ScratchpadGist.prototype = {
     // Update the visibility of the toolbar buttons and menu items.
     // They have a set of class names which correspond to state.  A
     // given item is hidden if any of its requirements are not met.
-    let items = this.doc.querySelectorAll("#sp-gist-toolbar toolbarbutton, #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
-    for (var i = 0; i < items.length; i++) {
-      let item = items[i];
+    let items = this.doc.querySelectorAll("#sp-gist-label #sp-gist-post #sp-gist-fork #sp-gist-history-button #sp-gist-refresh #sp-gist-file #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
+    for (let item of items) {
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
         (item.classList.contains("sp-gist-attached") && !attached) ||
         (item.classList.contains("sp-gist-detached") && attached) ||
@@ -293,11 +334,8 @@ ScratchpadGist.prototype = {
         item.removeAttribute("hidden");
     }
 
-    if (!attached) {
-      this.toolbar.setAttribute("hidden", "true");
-    } else {
+    if (attached) {
       // Update the toolbar and label
-      this.toolbar.removeAttribute("hidden");
       this.toolbarLink.setAttribute("href", this.attachedGist.html_url);
       this.toolbarLink.setAttribute("value", this.attachedGist.html_url);
 
@@ -347,12 +385,13 @@ ScratchpadGist.prototype = {
         if (typeof(options.err) == "function") {
           options.err(xhr);
         } else {
+          let label;
           try {
-            let response = JSON.parse(xhr.responseText)
+            let response = JSON.parse(xhr.responseText);
             let prefix = typeof(options.err) == "string" ? options.err : "The request returned an error: ";
-            var label = prefix + response.message + ".";
+            label = prefix + response.message + ".";
           } catch(ex) {
-            var label = "Request could not be completed.";
+            label = "Request could not be completed.";
           }
           this.notify(this.nbox.PRIORITY_CRITICAL_HIGH, label);
         }
@@ -391,7 +430,7 @@ ScratchpadGist.prototype = {
     Services.prompt.promptUsernameAndPassword(null, "GitHub Credentials", "Enter your github username and credentials.",
       username, password, "", check);
 
-    let auth = "Basic " + this.win.btoa(username.value + ':' + password.value);
+    let auth = "Basic " + this.win.btoa(username.value + ":" + password.value);
     this.findAuth(auth);
   },
 
@@ -407,7 +446,7 @@ ScratchpadGist.prototype = {
       err: "Couldn't log in: ",
       auth: auth,
       success: function(response) {
-        for each (let authorization in response) {
+        for (let authorization of response) {
           if (authorization.app.name == kAuthNote + " (API)") {
             this.authorized(authorization);
             return;
@@ -482,6 +521,8 @@ ScratchpadGist.prototype = {
     );
 
     let id = val.value;
+    if (id === null)
+      return;
 
     // If a URL was specified, pull out the gist id.
     let gistRE = new RegExp("gist.github.com/(.*)");
@@ -579,15 +620,15 @@ ScratchpadGist.prototype = {
    */
   getFile: function() {
     let files = {};
+    let filename = "scratchpad.js";
 
     if (this.attachedFilename) {
-      var filename = this.attachedFilename;
+      filename = this.attachedFilename;
     } else {
       let scratchpad = this.win.Scratchpad;
-      var filename = "scratchpad.js";
       if (scratchpad.filename) {
         filename = scratchpad.filename;
-        let lastSep = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+        let lastSep = Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\"));
         if (lastSep > -1) {
           filename = filename.substring(lastSep + 1);
         }
@@ -617,10 +658,8 @@ ScratchpadGist.prototype = {
    *   The gist as returned by an API request.
    */
   load: function(gist) {
-    let file = null;
-
     // Try to find the currently-selected subfile.
-    for (var i in gist.files) {
+    for (let i in gist.files) {
       if (gist.files[i].filename == this.attachedFilename) {
         this.loadFile(gist, gist.files[i]);
         return;
@@ -650,6 +689,7 @@ function attachWindow(win) {
 var WindowListener = {
   onOpenWindow: function(win) {
     // Wait for the window to finish loading
+    // XXX redefining "win" I don't even...
     let win = win.QueryInterface(Ci.nsIInterfaceRequestor)
       .getInterface(Ci.nsIDOMWindowInternal || Ci.nsIDOMWindow);
     win.addEventListener("load", function onLoad() {
@@ -682,30 +722,10 @@ function shutdown(data, reason)
       win.ScratchpadGist.destroy();
       delete win.ScratchpadGist;
     }
-
-    // remove menu
     let menu = win.document.getElementById("sp-gist-menu");
     if (menu) {
-      menu.parentNode.removeChild(menu);
+      menu.remove();
     }
-
-    // remove toolbar buttons and things
-    let toolbar = win.document.getElementById("sp-toolbar");
-    win.document.getElementById("sp-gist-label").remove();
-
-    win.document.getElementById("sp-gist-link").remove();
-
-    win.document.getElementById("sp-gist-springy").remove();
-
-    win.document.getElementById("sp-gist-file").remove();
-
-    win.document.getElementById("sp-gist-refresh").remove();
-
-    win.document.getElementById("sp-gist-history-button").remove();
-    win.document.getElementById("sp-gist-history").remove();
-
-    win.document.querySelector("#sp-gist-other").remove();
-    win.document.querySelector("#sp-gist-owned").remove();
   }
 
   if (WindowListener) {
@@ -713,11 +733,10 @@ function shutdown(data, reason)
   }
 }
 
-function install(data, reason) { startup(); }
-function uninstall(data, reason) { shutdown(); }
+function install(data, reason) { }
+function uninstall(data, reason) { }
 
 // If running in the scratchpad, run startup manually.
 if (__SCRATCHPAD__) {
   startup();
 }
-
