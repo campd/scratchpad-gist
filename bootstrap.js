@@ -39,6 +39,7 @@ function ScratchpadGist(win)
   this.updateUI = this.updateUI.bind(this);
   Services.obs.addObserver(this.updateUI, "sp-gist-auth", false);
 
+  this.overrideOpenFile();
   this.addCommands();
   this.addMenu();
   this.addToolbar();
@@ -95,6 +96,11 @@ ScratchpadGist.prototype = {
     this.doc.getElementById("sp-gist-toolbox").remove();
 
     this.doc.documentElement.insertBefore(tbar, this.nbox);
+
+    if (this.__originalOpenFile) {
+      this.win.Scratchpad.openFile = this.__originalOpenFile;
+      this.__originalOpenFile = null;
+    }
   },
 
   /**
@@ -367,6 +373,34 @@ ScratchpadGist.prototype = {
           this.loadFile(this.attachedGist, item);
         }.bind(this));
       }.bind(this));
+    }
+  },
+
+  /**
+   * Overrides the scratchpad's open file method to take care of gists in the
+   * recent file list.
+   */
+  overrideOpenFile: function() {
+    if (!this.__originalOpenFile) {
+      this.__originalOpenFile = this.win.Scratchpad.openFile;
+      this.win.Scratchpad.openFile = (index) => {
+        let path = this.win.Scratchpad.getRecentFiles()[index];
+        if (!path || !path.startsWith("Gist")) {
+          this.__originalOpenFile.call(this.win.Scratchpad, index);
+          return;
+        }
+        if (!!this.authtoken) {
+          let id = path.split(" ")[1];
+          this.request({
+            path: "/gists/" + id,
+            err: "Could not attach to the Gist: ",
+            success: function(response) {
+              this.attached(response);
+            }.bind(this),
+            error: "Couldn't find gist."
+          });
+        }
+      }
     }
   },
 
@@ -646,6 +680,8 @@ ScratchpadGist.prototype = {
    */
   attached: function(gist) {
     this.attachedGist = gist;
+
+    this.addEntryToRecentFilesMenu(gist);
     if (!this.attachedFile) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
     } else if (!gist) {
@@ -693,6 +729,35 @@ ScratchpadGist.prototype = {
     this.win.Scratchpad.setText(file.content);
     this.win.Scratchpad.setFilename(file.filename);
     this.win.Scratchpad.dirty = false;
+  },
+
+  /**
+   * Adds an entry to the scratchpad's recent file menu to open recently visited
+   * gists.
+   */
+  addEntryToRecentFilesMenu: function(gist) {
+    if (gist) {
+      let files = "";
+      let count = 0;
+      for (let file in gist.files) {
+        files += file;
+        count++;
+        if (count > 2) {
+          files += " and ";
+          break;
+        } else if (count == gist.files.length - 1) {
+          files += " and ";
+        } else if (count < gist.files.length) {
+          files += ", ";
+        }
+      }
+      if (count < gist.files.length) {
+        files += (gist.files.length - count) + " more";
+      }
+      this.win.Scratchpad.setRecentFile({
+        path: "Gist: " + gist.id + " (" + files + ")"
+      });
+    }
   },
 };
 
