@@ -351,7 +351,8 @@ ScratchpadGist.prototype = {
         }.bind(this), true);
       }.bind(this));
 
-      this.fileButton.setAttribute("label", this.attachedFilename);
+      this.fileButton.setAttribute("label", this.attachedFile);
+      this.loadFile(this.attachedGist, this.attachedGist.files[this.attachedFile]);
 
       // Update the file popup.
       this.clear(this.filesPopup);
@@ -362,7 +363,7 @@ ScratchpadGist.prototype = {
         });
         menuitem.addEventListener("command", function() {
           this.fileButton.setAttribute("label", name);
-          this.attachedFilename = name;
+          this.attachedFile = name;
           this.loadFile(this.attachedGist, item);
         }.bind(this));
       }.bind(this));
@@ -622,8 +623,8 @@ ScratchpadGist.prototype = {
     let files = {};
     let filename = "scratchpad.js";
 
-    if (this.attachedFilename) {
-      filename = this.attachedFilename;
+    if (this.attachedFile) {
+      filename = this.attachedFile;
     } else {
       let scratchpad = this.win.Scratchpad;
       if (scratchpad.filename) {
@@ -647,7 +648,21 @@ ScratchpadGist.prototype = {
     this.attachedGist = gist;
     if (!this.attachedFile) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    } else if (!gist) {
+      this.win.Scratchpad.setFilename(null);
+      this.win.Scratchpad.dirty = true;
     }
+    // override the save method of scratchpad
+    if (this.__originalSaveFile && !gist) {
+        this.win.Scratchpad.saveFile = this.__originalSaveFile;
+        this.__originalSaveFile = null;
+    } else if (!this.__originalSaveFile && gist) {
+      this.__originalSaveFile = this.win.Scratchpad.saveFile;
+      this.win.Scratchpad.saveFile = () => {
+        this.update();
+      };
+    }
+    this.win.Scratchpad.dirty = false;
     this.updateUI();
   },
 
@@ -660,15 +675,15 @@ ScratchpadGist.prototype = {
   load: function(gist) {
     // Try to find the currently-selected subfile.
     for (let i in gist.files) {
-      if (gist.files[i].filename == this.attachedFilename) {
+      if (gist.files[i].filename == this.attachedFile) {
         this.loadFile(gist, gist.files[i]);
         return;
       }
     }
     // The attached filename was either empty or is now missing.
     // Attach to the first one.
-    this.attachedFilename = Object.getOwnPropertyNames(gist.files)[0];
-    this.loadFile(gist, gist.files[this.attachedFilename]);
+    this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    this.loadFile(gist, gist.files[this.attachedFile]);
   },
 
   /**
@@ -677,6 +692,7 @@ ScratchpadGist.prototype = {
   loadFile: function(gist, file) {
     this.win.Scratchpad.setText(file.content);
     this.win.Scratchpad.setFilename(file.filename);
+    this.win.Scratchpad.dirty = false;
   },
 };
 
