@@ -757,6 +757,10 @@ ScratchpadGist.prototype = {
       this.win.Scratchpad.setRecentFile({
         path: "Gist: " + gist.id + " (" + files + ")"
       });
+      let entry = this.win.document.getElementById("sp-open_recent-menu")
+                      .firstChild.firstChild;
+      entry.setAttribute("checked", true);
+      entry.setAttribute("disabled", true);
     }
   },
 };
