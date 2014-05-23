@@ -725,10 +725,10 @@ ScratchpadGist.prototype = {
     this.attachedGist = gist;
 
     this.addEntryToRecentFilesMenu(gist);
-    if (!this.attachedFile) {
+    if (gist) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
       this.doc.getElementById("sp-gist-toolbar").collapsed = false;
-    } else if (!gist) {
+    } else {
       this.win.Scratchpad.setFilename(null);
       this.win.Scratchpad.dirty = true;
       this.doc.getElementById("sp-gist-toolbar").collapsed = true;
