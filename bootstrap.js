@@ -168,6 +168,11 @@ ScratchpadGist.prototype = {
       handler: () => this.create(true)
     });
     this.addCommand({
+      id: "sp-gist-cmd-create-anonymous",
+      label: "Create Anonymous Gist",
+      handler: () => this.create(true, true)
+    });
+    this.addCommand({
       id: "sp-gist-cmd-refresh",
       label: "Load Latest",
       handler: () => this.refresh()
@@ -220,6 +225,11 @@ ScratchpadGist.prototype = {
       command: "sp-gist-cmd-create-private",
       class: "sp-gist-authed sp-gist-detached",
       accesskey: "R"
+    });
+    this.addChild(popup, "menuitem", {
+      command: "sp-gist-cmd-create-anonymous",
+      class: "sp-gist-detached",
+      accesskey: "A"
     });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
@@ -276,13 +286,28 @@ ScratchpadGist.prototype = {
       class: "devtools-toolbarbutton sp-gist-authed"
     });
 
-    this.addChild(sp_toolbar, "toolbarbutton", {
-      command: "sp-gist-cmd-create-public",
-      class: "devtools-toolbarbutton sp-gist-authed sp-gist-detached"
+    let createNew = this.addChild(sp_toolbar, "toolbarbutton", {
+      label: "Create new Gist",
+      class: "devtools-toolbarbutton",
+      id: "sp-gist-create-new-button",
+      type: "menu"
     });
-    this.addChild(sp_toolbar, "toolbarbutton", {
+
+    let createNewPopup = this.addChild(createNew, "menupopup", {
+      id: "sp-gist-create-new"
+    });
+
+    this.addChild(createNewPopup, "menuitem", {
+      command: "sp-gist-cmd-create-public",
+      class: "sp-gist-authed sp-gist-detached"
+    });
+    this.addChild(createNewPopup, "menuitem", {
       command: "sp-gist-cmd-create-private",
-      class: "devtools-toolbarbutton sp-gist-authed sp-gist-detached"
+      class: "sp-gist-authed sp-gist-detached"
+    });
+    this.addChild(createNewPopup, "menuitem", {
+      command: "sp-gist-cmd-create-anonymous",
+      class: "sp-gist-detached"
     });
 
     this.addChild(sp_toolbar, "toolbarbutton", {
@@ -389,8 +414,12 @@ ScratchpadGist.prototype = {
       this.clear(this.historyPopup);
 
       this.attachedGist.history.forEach(function(item) {
+        let login = "anonymous";
+        if (item.user && item.user.login) {
+          login = item.user.login;
+        }
         let menuitem = this.addChild(this.historyPopup, "menuitem", {
-          label: item.version.substr(0, 6) + " " + item.user.login,
+          label: item.version.substr(0, 6) + " " + login,
         });
         menuitem.addEventListener("command", function() {
           this.refresh(item.version);
@@ -477,7 +506,9 @@ ScratchpadGist.prototype = {
      "https://api.github.com" + options.path,
      true, null, null);
 
-    xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
+    if (!options.anonymous) {
+      xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
+    }
     xhr.send(options.args ? JSON.stringify(options.args) : "");
   },
 
@@ -656,11 +687,14 @@ ScratchpadGist.prototype = {
    *
    * @param boolean pub
    *   True to create a public gist.
+   * @param boolean anon
+   *   True to create an anonymous gist.
    */
-  create: function(pub) {
+  create: function(pub, anon) {
     this.request({
       method: "POST",
       path: "/gists",
+      anonymous: anon,
       args: {
         description: null,
         public: pub,
