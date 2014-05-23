@@ -636,6 +636,7 @@ ScratchpadGist.prototype = {
    * Upload the contents of the scratchpad to the currently-attached gist.
    */
   update: function() {
+    this.cursorBeforeSave = this.win.Scratchpad.editor.getCursor();
     this.request({
       method: "PATCH",
       path: "/gists/" + this.attachedGist.id,
@@ -645,6 +646,8 @@ ScratchpadGist.prototype = {
       },
       success: function(response) {
         this.attached(response);
+        this.win.Scratchpad.editor.setCursor(this.cursorBeforeSave);
+        this.cursorBeforeSave = null;
       }.bind(this)
     });
   },
