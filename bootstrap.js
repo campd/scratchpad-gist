@@ -838,8 +838,8 @@ ScratchpadGist.prototype = {
       });
       let entry = this.doc.getElementById("sp-open_recent-menu")
                       .firstChild.firstChild;
-      entry.setAttribute("checked", true);
-      entry.setAttribute("disabled", true);
+      entry.setAttribute("checked", "true");
+      entry.setAttribute("disabled", "true");
     }
   },
 };
