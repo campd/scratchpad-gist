@@ -194,42 +194,52 @@ ScratchpadGist.prototype = {
     let menu = doc.createElement("menu");
     menu.setAttribute("id", "sp-gist-menu");
     menu.setAttribute("label", "Gist");
+    menu.setAttribute("accesskey", "G");
 
     let popup = this.addChild(menu, "menupopup", { id: "sp-gist-popup" });
 
-    this.addChild(popup, "menuitem", { id: "sp-gist-auth" });
+    this.addChild(popup, "menuitem", {
+      id: "sp-gist-auth",
+      accesskey: "S"
+    });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed" });
 
     this.addChild(popup, "menuitem", {
       id: "sp-gist-attach",
-      class: "sp-gist-authed"
+      class: "sp-gist-authed",
+      accesskey: "G"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-public",
-      class: "sp-gist-authed sp-gist-detached"
+      class: "sp-gist-authed sp-gist-detached",
+      accesskey: "C"
     });
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-private",
-      class: "sp-gist-authed sp-gist-detached"
+      class: "sp-gist-authed sp-gist-detached",
+      accesskey: "R"
     });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-refresh",
-      class: "sp-gist-authed sp-gist-attached"
+      class: "sp-gist-authed sp-gist-attached",
+      accesskey: "L"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-fork",
-      class: "sp-gist-authed sp-gist-attached sp-gist-other"
+      class: "sp-gist-authed sp-gist-attached sp-gist-other",
+      accesskey: "F"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-update",
-      class: "sp-gist-authed sp-gist-owned"
+      class: "sp-gist-authed sp-gist-owned",
+      accesskey: "P"
     });
 
     let help = doc.getElementById("sp-help-menu");
