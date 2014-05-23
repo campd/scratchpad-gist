@@ -39,6 +39,7 @@ function ScratchpadGist(win)
   this.updateUI = this.updateUI.bind(this);
   Services.obs.addObserver(this.updateUI, "sp-gist-auth", false);
 
+  this.overrideOpenFile();
   this.addCommands();
   this.addMenu();
   this.addToolbar();
@@ -95,6 +96,11 @@ ScratchpadGist.prototype = {
     this.doc.getElementById("sp-gist-toolbox").remove();
 
     this.doc.documentElement.insertBefore(tbar, this.nbox);
+
+    if (this.__originalOpenFile) {
+      this.win.Scratchpad.openFile = this.__originalOpenFile;
+      this.__originalOpenFile = null;
+    }
   },
 
   /**
@@ -351,7 +357,8 @@ ScratchpadGist.prototype = {
         }.bind(this), true);
       }.bind(this));
 
-      this.fileButton.setAttribute("label", this.attachedFilename);
+      this.fileButton.setAttribute("label", this.attachedFile);
+      this.loadFile(this.attachedGist, this.attachedGist.files[this.attachedFile]);
 
       // Update the file popup.
       this.clear(this.filesPopup);
@@ -362,10 +369,38 @@ ScratchpadGist.prototype = {
         });
         menuitem.addEventListener("command", function() {
           this.fileButton.setAttribute("label", name);
-          this.attachedFilename = name;
+          this.attachedFile = name;
           this.loadFile(this.attachedGist, item);
         }.bind(this));
       }.bind(this));
+    }
+  },
+
+  /**
+   * Overrides the scratchpad's open file method to take care of gists in the
+   * recent file list.
+   */
+  overrideOpenFile: function() {
+    if (!this.__originalOpenFile) {
+      this.__originalOpenFile = this.win.Scratchpad.openFile;
+      this.win.Scratchpad.openFile = (index) => {
+        let path = this.win.Scratchpad.getRecentFiles()[index];
+        if (!path || !path.startsWith("Gist")) {
+          this.__originalOpenFile.call(this.win.Scratchpad, index);
+          return;
+        }
+        if (!!this.authtoken) {
+          let id = path.split(" ")[1];
+          this.request({
+            path: "/gists/" + id,
+            err: "Could not attach to the Gist: ",
+            success: function(response) {
+              this.attached(response);
+            }.bind(this),
+            error: "Couldn't find gist."
+          });
+        }
+      }
     }
   },
 
@@ -622,8 +657,8 @@ ScratchpadGist.prototype = {
     let files = {};
     let filename = "scratchpad.js";
 
-    if (this.attachedFilename) {
-      filename = this.attachedFilename;
+    if (this.attachedFile) {
+      filename = this.attachedFile;
     } else {
       let scratchpad = this.win.Scratchpad;
       if (scratchpad.filename) {
@@ -645,9 +680,25 @@ ScratchpadGist.prototype = {
    */
   attached: function(gist) {
     this.attachedGist = gist;
+
+    this.addEntryToRecentFilesMenu(gist);
     if (!this.attachedFile) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    } else if (!gist) {
+      this.win.Scratchpad.setFilename(null);
+      this.win.Scratchpad.dirty = true;
     }
+    // override the save method of scratchpad
+    if (this.__originalSaveFile && !gist) {
+        this.win.Scratchpad.saveFile = this.__originalSaveFile;
+        this.__originalSaveFile = null;
+    } else if (!this.__originalSaveFile && gist) {
+      this.__originalSaveFile = this.win.Scratchpad.saveFile;
+      this.win.Scratchpad.saveFile = () => {
+        this.update();
+      };
+    }
+    this.win.Scratchpad.dirty = false;
     this.updateUI();
   },
 
@@ -660,15 +711,15 @@ ScratchpadGist.prototype = {
   load: function(gist) {
     // Try to find the currently-selected subfile.
     for (let i in gist.files) {
-      if (gist.files[i].filename == this.attachedFilename) {
+      if (gist.files[i].filename == this.attachedFile) {
         this.loadFile(gist, gist.files[i]);
         return;
       }
     }
     // The attached filename was either empty or is now missing.
     // Attach to the first one.
-    this.attachedFilename = Object.getOwnPropertyNames(gist.files)[0];
-    this.loadFile(gist, gist.files[this.attachedFilename]);
+    this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+    this.loadFile(gist, gist.files[this.attachedFile]);
   },
 
   /**
@@ -677,6 +728,36 @@ ScratchpadGist.prototype = {
   loadFile: function(gist, file) {
     this.win.Scratchpad.setText(file.content);
     this.win.Scratchpad.setFilename(file.filename);
+    this.win.Scratchpad.dirty = false;
+  },
+
+  /**
+   * Adds an entry to the scratchpad's recent file menu to open recently visited
+   * gists.
+   */
+  addEntryToRecentFilesMenu: function(gist) {
+    if (gist) {
+      let files = "";
+      let count = 0;
+      for (let file in gist.files) {
+        files += file;
+        count++;
+        if (count > 2) {
+          files += " and ";
+          break;
+        } else if (count == gist.files.length - 1) {
+          files += " and ";
+        } else if (count < gist.files.length) {
+          files += ", ";
+        }
+      }
+      if (count < gist.files.length) {
+        files += (gist.files.length - count) + " more";
+      }
+      this.win.Scratchpad.setRecentFile({
+        path: "Gist: " + gist.id + " (" + files + ")"
+      });
+    }
   },
 };
 
