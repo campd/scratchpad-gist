@@ -168,6 +168,11 @@ ScratchpadGist.prototype = {
       handler: () => this.create(true)
     });
     this.addCommand({
+      id: "sp-gist-cmd-create-anonymous",
+      label: "Create Anonymous Gist",
+      handler: () => this.create(true, true)
+    });
+    this.addCommand({
       id: "sp-gist-cmd-refresh",
       label: "Load Latest",
       handler: () => this.refresh()
@@ -194,42 +199,57 @@ ScratchpadGist.prototype = {
     let menu = doc.createElement("menu");
     menu.setAttribute("id", "sp-gist-menu");
     menu.setAttribute("label", "Gist");
+    menu.setAttribute("accesskey", "G");
 
     let popup = this.addChild(menu, "menupopup", { id: "sp-gist-popup" });
 
-    this.addChild(popup, "menuitem", { id: "sp-gist-auth" });
+    this.addChild(popup, "menuitem", {
+      id: "sp-gist-auth",
+      accesskey: "S"
+    });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed" });
 
     this.addChild(popup, "menuitem", {
       id: "sp-gist-attach",
-      class: "sp-gist-authed"
+      class: "sp-gist-authed",
+      accesskey: "G"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-public",
-      class: "sp-gist-authed sp-gist-detached"
+      class: "sp-gist-authed sp-gist-detached",
+      accesskey: "C"
     });
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-create-private",
-      class: "sp-gist-authed sp-gist-detached"
+      class: "sp-gist-authed sp-gist-detached",
+      accesskey: "R"
+    });
+    this.addChild(popup, "menuitem", {
+      command: "sp-gist-cmd-create-anonymous",
+      class: "sp-gist-detached",
+      accesskey: "A"
     });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-refresh",
-      class: "sp-gist-authed sp-gist-attached"
+      class: "sp-gist-authed sp-gist-attached",
+      accesskey: "L"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-fork",
-      class: "sp-gist-authed sp-gist-attached sp-gist-other"
+      class: "sp-gist-authed sp-gist-attached sp-gist-other",
+      accesskey: "F"
     });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-update",
-      class: "sp-gist-authed sp-gist-owned"
+      class: "sp-gist-authed sp-gist-owned",
+      accesskey: "P"
     });
 
     let help = doc.getElementById("sp-help-menu");
@@ -252,9 +272,50 @@ ScratchpadGist.prototype = {
       id: "sp-gist-toolbar",
       class: "devtools-toolbar"
     });
+    this.doc.getElementById("sp-gist-toolbar").collapsed = true;
   },
 
   addToolbarButtons: function() {
+    // Add some buttons to main scratchpad toolbar
+    let sp_toolbar = this.doc.getElementById("sp-toolbar");
+
+    this.addChild(sp_toolbar, "spacer", { flex: "1" });
+
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      id: "sp-gist-attach-button",
+      class: "devtools-toolbarbutton sp-gist-authed"
+    });
+
+    let createNew = this.addChild(sp_toolbar, "toolbarbutton", {
+      label: "Create new Gist",
+      class: "devtools-toolbarbutton",
+      id: "sp-gist-create-new-button",
+      type: "menu"
+    });
+
+    let createNewPopup = this.addChild(createNew, "menupopup", {
+      id: "sp-gist-create-new"
+    });
+
+    this.addChild(createNewPopup, "menuitem", {
+      command: "sp-gist-cmd-create-public",
+      class: "sp-gist-authed sp-gist-detached"
+    });
+    this.addChild(createNewPopup, "menuitem", {
+      command: "sp-gist-cmd-create-private",
+      class: "sp-gist-authed sp-gist-detached"
+    });
+    this.addChild(createNewPopup, "menuitem", {
+      command: "sp-gist-cmd-create-anonymous",
+      class: "sp-gist-detached"
+    });
+
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      id: "sp-gist-auth-button",
+      class: "devtools-toolbarbutton"
+    });
+
+    // Add buttons in the gist toolbar
     let toolbar = this.toolbar;
 
     this.addChild(toolbar, "label", {
@@ -313,10 +374,14 @@ ScratchpadGist.prototype = {
 
   updateUI: function() {
     let auth = this.doc.getElementById("sp-gist-auth");
+    let authButton = this.doc.getElementById("sp-gist-auth-button");
     auth.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
+    authButton.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
 
     let attach = this.doc.getElementById("sp-gist-attach");
     attach.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
+    let attachButton = this.doc.getElementById("sp-gist-attach-button");
+    attachButton.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
@@ -349,8 +414,12 @@ ScratchpadGist.prototype = {
       this.clear(this.historyPopup);
 
       this.attachedGist.history.forEach(function(item) {
+        let login = "anonymous";
+        if (item.user && item.user.login) {
+          login = item.user.login;
+        }
         let menuitem = this.addChild(this.historyPopup, "menuitem", {
-          label: item.version.substr(0, 6) + " " + item.user.login,
+          label: item.version.substr(0, 6) + " " + login,
         });
         menuitem.addEventListener("command", function() {
           this.refresh(item.version);
@@ -437,7 +506,9 @@ ScratchpadGist.prototype = {
      "https://api.github.com" + options.path,
      true, null, null);
 
-    xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
+    if (!options.anonymous) {
+      xhr.setRequestHeader("Authorization", options.auth || "token " + this.authtoken);
+    }
     xhr.send(options.args ? JSON.stringify(options.args) : "");
   },
 
@@ -616,11 +687,14 @@ ScratchpadGist.prototype = {
    *
    * @param boolean pub
    *   True to create a public gist.
+   * @param boolean anon
+   *   True to create an anonymous gist.
    */
-  create: function(pub) {
+  create: function(pub, anon) {
     this.request({
       method: "POST",
       path: "/gists",
+      anonymous: anon,
       args: {
         description: null,
         public: pub,
@@ -636,6 +710,7 @@ ScratchpadGist.prototype = {
    * Upload the contents of the scratchpad to the currently-attached gist.
    */
   update: function() {
+    this.cursorBeforeSave = this.win.Scratchpad.editor.getCursor();
     this.request({
       method: "PATCH",
       path: "/gists/" + this.attachedGist.id,
@@ -645,6 +720,8 @@ ScratchpadGist.prototype = {
       },
       success: function(response) {
         this.attached(response);
+        this.win.Scratchpad.editor.setCursor(this.cursorBeforeSave);
+        this.cursorBeforeSave = null;
       }.bind(this)
     });
   },
@@ -682,11 +759,13 @@ ScratchpadGist.prototype = {
     this.attachedGist = gist;
 
     this.addEntryToRecentFilesMenu(gist);
-    if (!this.attachedFile) {
+    if (gist) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
-    } else if (!gist) {
+      this.doc.getElementById("sp-gist-toolbar").collapsed = false;
+    } else {
       this.win.Scratchpad.setFilename(null);
       this.win.Scratchpad.dirty = true;
+      this.doc.getElementById("sp-gist-toolbar").collapsed = true;
     }
     // override the save method of scratchpad
     if (this.__originalSaveFile && !gist) {
@@ -757,6 +836,10 @@ ScratchpadGist.prototype = {
       this.win.Scratchpad.setRecentFile({
         path: "Gist: " + gist.id + " (" + files + ")"
       });
+      let entry = this.doc.getElementById("sp-open_recent-menu")
+                      .firstChild.firstChild;
+      entry.setAttribute("checked", true);
+      entry.setAttribute("disabled", true);
     }
   },
 };
