@@ -252,9 +252,35 @@ ScratchpadGist.prototype = {
       id: "sp-gist-toolbar",
       class: "devtools-toolbar"
     });
+    this.doc.getElementById("sp-gist-toolbar").collapsed = true;
   },
 
   addToolbarButtons: function() {
+    // Add some buttons to main scratchpad toolbar
+    let sp_toolbar = this.doc.getElementById("sp-toolbar");
+
+    this.addChild(sp_toolbar, "spacer", { flex: "1" });
+
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      id: "sp-gist-attach-button",
+      class: "devtools-toolbarbutton sp-gist-authed"
+    });
+
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      command: "sp-gist-cmd-create-public",
+      class: "devtools-toolbarbutton sp-gist-authed sp-gist-detached"
+    });
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      command: "sp-gist-cmd-create-private",
+      class: "devtools-toolbarbutton sp-gist-authed sp-gist-detached"
+    });
+
+    this.addChild(sp_toolbar, "toolbarbutton", {
+      id: "sp-gist-auth-button",
+      class: "devtools-toolbarbutton"
+    });
+
+    // Add buttons in the gist toolbar
     let toolbar = this.toolbar;
 
     this.addChild(toolbar, "label", {
@@ -313,10 +339,14 @@ ScratchpadGist.prototype = {
 
   updateUI: function() {
     let auth = this.doc.getElementById("sp-gist-auth");
+    let authButton = this.doc.getElementById("sp-gist-auth-button");
     auth.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
+    authButton.setAttribute("command", this.authtoken ? "sp-gist-cmd-signout" : "sp-gist-cmd-signin");
 
     let attach = this.doc.getElementById("sp-gist-attach");
     attach.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
+    let attachButton = this.doc.getElementById("sp-gist-attach-button");
+    attachButton.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
@@ -687,9 +717,11 @@ ScratchpadGist.prototype = {
     this.addEntryToRecentFilesMenu(gist);
     if (!this.attachedFile) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
+      this.doc.getElementById("sp-gist-toolbar").collapsed = false;
     } else if (!gist) {
       this.win.Scratchpad.setFilename(null);
       this.win.Scratchpad.dirty = true;
+      this.doc.getElementById("sp-gist-toolbar").collapsed = true;
     }
     // override the save method of scratchpad
     if (this.__originalSaveFile && !gist) {
@@ -760,7 +792,7 @@ ScratchpadGist.prototype = {
       this.win.Scratchpad.setRecentFile({
         path: "Gist: " + gist.id + " (" + files + ")"
       });
-      let entry = this.win.document.getElementById("sp-open_recent-menu")
+      let entry = this.doc.getElementById("sp-open_recent-menu")
                       .firstChild.firstChild;
       entry.setAttribute("checked", true);
       entry.setAttribute("disabled", true);
