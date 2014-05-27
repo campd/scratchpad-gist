@@ -385,13 +385,13 @@ ScratchpadGist.prototype = {
 
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
-    let own = attached && this.attachedGist.user && (this.attachedGist.user.id == this.authUser);
+    let own = attached && this.attachedGist.owner && (this.attachedGist.owner.id == this.authUser);
     let multifile = this.attachedGist && Object.getOwnPropertyNames(this.attachedGist.files).length > 1;
 
     // Update the visibility of the toolbar buttons and menu items.
     // They have a set of class names which correspond to state.  A
     // given item is hidden if any of its requirements are not met.
-    let items = this.doc.querySelectorAll("#sp-gist-label #sp-gist-post #sp-gist-fork #sp-gist-history-button #sp-gist-refresh #sp-gist-file #sp-gist-menu menuitem, #sp-gist-menu menuseparator");
+    let items = this.doc.querySelectorAll("#sp-gist-label, #sp-gist-post, #sp-gist-fork, #sp-gist-history-button, #sp-gist-refresh, #sp-gist-file, #sp-gist-menu menuitem, #sp-gist-menu menuseparator, #sp-gist-create-new-button menuitem");
     for (let item of items) {
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
         (item.classList.contains("sp-gist-attached") && !attached) ||
