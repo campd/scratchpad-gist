@@ -173,6 +173,16 @@ ScratchpadGist.prototype = {
       handler: () => this.create(true, true)
     });
     this.addCommand({
+      id: "sp-gist-cmd-link-local",
+      label: "Link to Local File",
+      handler: () => this.linkLocalFile()
+    });
+    this.addCommand({
+      id: "sp-gist-cmd-unlink-local",
+      label: "Unlink Local File",
+      handler: () => this.linkLocalFile(true)
+    });
+    this.addCommand({
       id: "sp-gist-cmd-refresh",
       label: "Load Latest",
       handler: () => this.refresh()
@@ -233,6 +243,14 @@ ScratchpadGist.prototype = {
     });
 
     this.addChild(popup, "menuseparator", { class: "sp-gist-authed sp-gist-attached" });
+
+
+    this.addChild(popup, "menuitem", {
+      id: "sp-gist-link-local-menu-item",
+      command: "sp-gist-cmd-link-local",
+      class: "sp-gist-attached",
+      accesskey: "F"
+    });
 
     this.addChild(popup, "menuitem", {
       command: "sp-gist-cmd-refresh",
@@ -330,7 +348,26 @@ ScratchpadGist.prototype = {
       class: "text-link",
     });
 
+    this.addChild(toolbar, "label", {
+      style: kLabelStyle,
+      id: "sp-gist-local",
+      class: "sp-gist-attached sp-gist-linked",
+      value: "Local:"
+    });
+
+    this.addChild(toolbar, "label", {
+      style: kLabelStyle,
+      id: "sp-gist-local-path",
+      class: "text-link sp-gist-attached sp-gist-linked",
+    });
+
     this.addChild(toolbar, "toolbarspring", {id: "sp-gist-springy"});
+
+    this.addChild(toolbar, "toolbarbutton", {
+      command: "sp-gist-cmd-link-local",
+      id: "sp-gist-link-local",
+      class: "devtools-toolbarbutton"
+    });
 
     let fileSelector = this.addChild(toolbar, "toolbarbutton", {
       id: "sp-gist-file",
@@ -383,22 +420,29 @@ ScratchpadGist.prototype = {
     let attachButton = this.doc.getElementById("sp-gist-attach-button");
     attachButton.setAttribute("command", this.attachedGist ? "sp-gist-cmd-detach" : "sp-gist-cmd-attach");
 
+    let linkLocal = this.doc.getElementById("sp-gist-link-local-menu-item");
+    linkLocal.setAttribute("command", this.linkedFileName ? "sp-gist-cmd-unlink-local" : "sp-gist-cmd-link-local");
+    let linkLocalButton = this.doc.getElementById("sp-gist-link-local");
+    linkLocalButton.setAttribute("command", this.linkedFileName ? "sp-gist-cmd-unlink-local" : "sp-gist-cmd-link-local");
+
     let authed = !!this.authtoken;
     let attached = !!this.attachedGist;
+    let linked = !!this.linkedFileName;
     let own = attached && this.attachedGist.owner && (this.attachedGist.owner.id == this.authUser);
     let multifile = this.attachedGist && Object.getOwnPropertyNames(this.attachedGist.files).length > 1;
 
     // Update the visibility of the toolbar buttons and menu items.
     // They have a set of class names which correspond to state.  A
     // given item is hidden if any of its requirements are not met.
-    let items = this.doc.querySelectorAll("#sp-gist-label, #sp-gist-post, #sp-gist-fork, #sp-gist-history-button, #sp-gist-refresh, #sp-gist-file, #sp-gist-menu menuitem, #sp-gist-menu menuseparator, #sp-gist-create-new-button menuitem");
+    let items = this.doc.querySelectorAll("#sp-gist-label, #sp-gist-post, #sp-gist-fork, #sp-gist-history-button, #sp-gist-refresh, #sp-gist-file, #sp-gist-menu menuitem, #sp-gist-menu menuseparator, #sp-gist-create-new-button menuitem, #sp-gist-local-path, #sp-gist-local");
     for (let item of items) {
       if ((item.classList.contains("sp-gist-authed") && !authed) ||
         (item.classList.contains("sp-gist-attached") && !attached) ||
         (item.classList.contains("sp-gist-detached") && attached) ||
         (item.classList.contains("sp-gist-owned") && !own) ||
         (item.classList.contains("sp-gist-other") && own) ||
-        (item.classList.contains("sp-gist-multifile") && !multifile))
+        (item.classList.contains("sp-gist-multifile") && !multifile) ||
+        (item.classList.contains("sp-gist-linked") && !linked))
 
         item.setAttribute("hidden", "true");
       else
@@ -409,6 +453,7 @@ ScratchpadGist.prototype = {
       // Update the toolbar and label
       this.toolbarLink.setAttribute("href", this.attachedGist.html_url);
       this.toolbarLink.setAttribute("value", this.attachedGist.html_url);
+      this.doc.getElementById("sp-gist-local-path").setAttribute("value", this.linkedFileName);
 
       // Update the history popup from the attached gist...
       this.clear(this.historyPopup);
@@ -440,9 +485,33 @@ ScratchpadGist.prototype = {
           this.fileButton.setAttribute("label", name);
           this.attachedFile = name;
           this.loadFile(this.attachedGist, item);
+          this.resolveLinkedFileName();
         }.bind(this));
       }.bind(this));
     }
+  },
+
+  /**
+   * Resolves the locally linked file for the recent file menu entry at the
+   * given index
+   *
+   * @param {number} index
+   *        The entry index to parse from the recent files list to look for
+   *        the locally linked file
+   */
+  resolveLinkedFileName: function(index = 0) {
+    let name = this.win.Scratchpad.getRecentFiles()[index];
+    if (name.startsWith("Gist")) {
+      let filename = this.win.Scratchpad.filename;
+      let regex = new RegExp("[, \\(]" + filename.replace(".", "\\.") +
+                             "\\|([^,\\)]+)[, \\)]", "gi");
+      let match = regex.exec(name);
+      if (match && match[1]) {
+        this.linkedFileName = match[1];
+        return;
+      }
+    }
+    this.linkedFileName = null;
   },
 
   /**
@@ -465,6 +534,9 @@ ScratchpadGist.prototype = {
             err: "Could not attach to the Gist: ",
             success: function(response) {
               this.attached(response);
+              this.resolveLinkedFileName(index);
+              this.addEntryToRecentFilesMenu(response);
+              this.updateUI();
             }.bind(this),
             error: "Couldn't find gist."
           });
@@ -648,6 +720,28 @@ ScratchpadGist.prototype = {
   },
 
   /**
+   * Links the gist file to a local file as well.
+   * Overrides the contents of an existing file if any.
+   *
+   * @param {boolean} unlink
+   *        true if the file is to be unlinked
+   */
+  linkLocalFile: function(unlink) {
+    if (unlink) {
+      this.linkedFileName = null;
+      this.win.Scratchpad.setFilename(this.filename);
+      this.addEntryToRecentFilesMenu(this.attachedGist);
+      this.updateUI();
+      return;
+    }
+    this.win.Scratchpad.saveFileAs(() => {
+      this.linkedFileName = this.win.Scratchpad.filename;
+      this.addEntryToRecentFilesMenu(this.attached);
+      this.updateUI();
+    });
+  },
+
+  /**
    * Fork the currently-attached gist.
    */
   fork: function() {
@@ -758,7 +852,6 @@ ScratchpadGist.prototype = {
   attached: function(gist) {
     this.attachedGist = gist;
 
-    this.addEntryToRecentFilesMenu(gist);
     if (gist) {
       this.attachedFile = Object.getOwnPropertyNames(gist.files)[0];
       this.doc.getElementById("sp-gist-toolbar").collapsed = false;
@@ -766,6 +859,7 @@ ScratchpadGist.prototype = {
       this.win.Scratchpad.setFilename(null);
       this.win.Scratchpad.dirty = true;
       this.doc.getElementById("sp-gist-toolbar").collapsed = true;
+      this.linkedFileName = null;
     }
     // override the save method of scratchpad
     if (this.__originalSaveFile && !gist) {
@@ -775,6 +869,9 @@ ScratchpadGist.prototype = {
       this.__originalSaveFile = this.win.Scratchpad.saveFile;
       this.win.Scratchpad.saveFile = () => {
         this.update();
+        if (this.win.Scratchpad.filename == this.linkedFileName) {
+          this.__originalSaveFile();
+        }
       };
     }
     this.win.Scratchpad.dirty = false;
@@ -806,7 +903,7 @@ ScratchpadGist.prototype = {
    */
   loadFile: function(gist, file) {
     this.win.Scratchpad.setText(file.content);
-    this.win.Scratchpad.setFilename(file.filename);
+    this.win.Scratchpad.setFilename(this.linkedFileName || file.filename);
     this.win.Scratchpad.dirty = false;
   },
 
@@ -819,7 +916,8 @@ ScratchpadGist.prototype = {
       let files = "";
       let count = 0;
       for (let file in gist.files) {
-        files += file;
+        files += file + (this.win.Scratchpad.filename == file
+                         ? "|" + this.linkedFileName : "");
         count++;
         if (count > 2) {
           files += " and ";
